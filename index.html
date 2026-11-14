@@ -2,9 +2,9 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta name="theme-color" content="#121212">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#121212">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <meta name="description" content="Приложение для изучения английского языка с карточками, тестами и тренировкой письма.">
@@ -84,10 +84,3840 @@ body { background:#f8fafc !important; letter-spacing:-.01em; }
 header { background:rgba(248,250,252,.92) !important; }
 .dark header { background:rgba(11,16,32,.92) !important; }
 #main { max-width:900px; }
-#main .rounded-3xl.bg-gradient-to-br { background:#202b45 !important; border-radius:22px !important; }
+#main .rounded-3xl.bg-gradient-to-br { border-radius:22px !important; }
 #main article, #main .bg-white.dark\\:bg-slate-900 {
   box-shadow:none !important;
 }
+#main .rounded-2xl, #main .rounded-xl { border-radius:14px; }
+button { transition:background .16s ease, border-color .16s ease, transform .16s ease; }
+button:focus-visible, input:focus-visible, textarea:focus-visible {
+  outline:3px solid rgba(99,102,241,.28); outline-offset:2px;
+}
+.card-face { border-radius:20px !important; }
+.flashcard { min-height:310px; }
+@media (max-width:640px) {
+  #main { padding-top:20px; }
+  .flashcard { min-height:280px; }
+}
+</style>
+
+</head>
+<body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 transition-colors">
+
+<div id="app" class="min-h-screen flex flex-col">
+  <header class="sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg border-b border-slate-200 dark:border-slate-800">
+    <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+      <button onclick="goHome()" class="flex items-center gap-2">
+        <span class="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-xl font-black">L</span>
+        <span class="text-xl font-bold tracking-tight">Lingua<span class="text-indigo-600">.</span></span>
+      </button>
+      <div class="flex items-center gap-2">
+        <button onclick="toggleTheme()" id="themeBtn" aria-label="Переключить тему" class="w-10 h-10 rounded-xl flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-lg">🌙</button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main" class="flex-1 w-full max-w-5xl mx-auto px-4 py-6 md:py-10"></main>
+
+  <footer class="text-center text-xs text-slate-400 py-5 safe-bottom">
+    Lingua · Твои слова, твой прогресс
+  </footer>
+</div>
+
+<div id="modalRoot"></div>
+<input type="file" id="jsonFile" accept=".json,application/json" class="hidden">
+
+<script>
+'use strict';
+
+const STORAGE_KEY = 'lingua_app_data_v1';
+const THEME_KEY = 'lingua_theme_v1';
+
+const makeId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+
+const demoSet = {
+  id: 'demo-english-a2',
+  name: 'Английский — базовые слова',
+  description: 'Первые пять слов для повседневного общения.',
+  words: [
+    { id: makeId(), front: 'Achieve', back: 'Достигать', example: 'I want to achieve my goals.', exampleTranslation: 'Я хочу достичь своих целей.' },
+    { id: makeId(), front: 'Although', back: 'Хотя', example: 'Although it was raining, we went out.', exampleTranslation: 'Хотя шёл дождь, мы вышли на улицу.' },
+    { id: makeId(), front: 'Improve', back: 'Улучшать', example: 'I want to improve my English.', exampleTranslation: 'Я хочу улучшить свой английский.' },
+    { id: makeId(), front: 'Require', back: 'Требовать', example: 'This job requires experience.', exampleTranslation: 'Эта работа требует опыта.' },
+    { id: makeId(), front: 'Environment', back: 'Окружающая среда', example: 'We should protect the environment.', exampleTranslation: 'Мы должны защищать окружающую среду.' }
+  ],
+  learned: []
+};
+
+let data = loadData();
+let selectedSetId = null;
+let currentMode = 'cards';
+let studyWords = [];
+let currentIndex = 0;
+let isFlipped = false;
+let testQuestion = null;
+let testScore = 0;
+let testTotal = 0;
+let writeQuestion = null;
+let writeScore = 0;
+let writeTotal = 0;
+let swipeStartX = null;
+let swipeStartY = null;
+
+function loadData() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed.sets)) { parsed.sets.forEach(set => (set.words || []).forEach(word => { if (!Number.isFinite(word.intervalDays)) word.intervalDays = 0; if (!Number.isFinite(word.repetitions)) word.repetitions = 0; if (!Number.isFinite(word.lapses)) word.lapses = 0; if (!Number.isFinite(word.mistakeCount)) word.mistakeCount = 0; if (!Number.isFinite(word.easeFactor)) word.easeFactor = 2.5; if (!Number.isFinite(word.dueAt)) word.dueAt = 0; })); return parsed; }
+    }
+  } catch (error) {
+    console.warn('Не удалось прочитать сохранённые данные.', error);
+  }
+  return { sets: [demoSet] };
+}
+
+function saveData() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch (error) {
+    alert('Не удалось сохранить данные. Возможно, в браузере закончилось место.');
+  }
+}
+
+function escapeHTML(value) {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  })[char]);
+}
+
+function getSet(id = selectedSetId) {
+  return data.sets.find(set => set.id === id);
+}
+
+function getProgress(set) {
+  const total = set.words.length;
+  const learned = set.words.filter(word => (set.learned || []).includes(word.id)).length;
+  return {
+    total,
+    learned,
+    percent: total ? Math.round(learned / total * 100) : 0
+  };
+}
+
+function goHome() {
+  selectedSetId = null;
+  renderHome();
+}
+
+function renderHome() {
+  const main = document.getElementById('main');
+  const totalWords = data.sets.reduce((sum, set) => sum + set.words.length, 0);
+  const totalLearned = data.sets.reduce((sum, set) => sum + (set.learned || []).filter(id => set.words.some(word => word.id === id)).length, 0);
+
+  main.innerHTML = `
+    <section class="mb-8">
+      <div class="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 md:p-8 text-slate-900 dark:text-slate-100 overflow-hidden relative">
+        <div class="relative z-10 max-w-xl">
+          <div class="text-indigo-600 dark:text-indigo-400 text-sm font-semibold mb-2">ТВОЙ ЛИЧНЫЙ ТРЕНАЖЁР</div>
+          <h1 class="text-3xl md:text-4xl font-bold leading-tight mb-3">Изучай язык<br>в своем темпе.</h1>
+          <p class="text-slate-600 dark:text-slate-300 text-sm md:text-base mb-5">Запоминай слова, проходи тесты и отслеживай свой прогресс.</p>
+          <button onclick="openCreateSet()" class="bg-indigo-600 text-white font-bold rounded-xl px-5 py-3 hover:bg-indigo-700 transition">+ Создать набор</button>
+        </div>
+        <div class="absolute -right-8 -bottom-12 text-[180px] text-indigo-600 dark:text-indigo-400 opacity-10 select-none">A</div>
+      </div>
+    </section>
+
+    <section class="grid grid-cols-2 gap-3 mb-8">
+      <div class="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4">
+        <div class="text-2xl font-bold">${totalWords}</div>
+        <div class="text-sm text-slate-500 mt-1">Всего слов</div>
+      </div>
+      <div class="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4">
+        <div class="text-2xl font-bold text-emerald-500">${totalLearned}</div>
+        <div class="text-sm text-slate-500 mt-1">Выучено слов</div>
+      </div>
+    </section>
+
+    <section>
+      <div class="flex items-center justify-between gap-3 mb-4">
+        <div>
+          <h2 class="text-xl font-bold">Мои наборы</h2>
+          <p class="text-sm text-slate-500 mt-1">${data.sets.length} наборов карточек</p>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="importJSON()" class="text-sm font-semibold px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800">Импорт</button>
+          <button onclick="exportJSON()" class="text-sm font-semibold px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800">Экспорт</button>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        ${data.sets.length ? data.sets.map(set => {
+          const p = getProgress(set);
+          return `
+            <article class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm">
+              <div class="flex items-start justify-between gap-3">
+                <button class="text-left flex-1 min-w-0" onclick="openSet('${set.id}')">
+                  <h3 class="font-bold text-lg truncate">${escapeHTML(set.name)}</h3>
+                  <p class="text-sm text-slate-500 mt-1 line-clamp-2">${escapeHTML(set.description || 'Без описания')}</p>
+                </button>
+                <button onclick="openSetMenu('${set.id}')" class="w-9 h-9 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-xl flex-shrink-0" aria-label="Меню набора">⋯</button>
+              </div>
+              <div class="flex justify-between text-xs text-slate-500 mt-5 mb-2">
+                <span>${set.words.length} слов</span>
+                <span>${p.learned} / ${p.total} выучено</span>
+              </div>
+              <div class="h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                <div class="h-full rounded-full bg-indigo-500 progress-fill" style="width:${p.percent}%"></div>
+              </div>
+              <button onclick="openSet('${set.id}')" class="mt-4 w-full py-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 font-semibold text-sm hover:bg-indigo-100 dark:hover:bg-indigo-900 transition">Открыть набор →</button>
+            </article>`;
+        }).join('') : `
+          <div class="col-span-full text-center py-12 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700">
+            <div class="text-4xl mb-3">📚</div>
+            <p class="font-semibold">Пока нет наборов</p>
+            <p class="text-sm text-slate-500 mt-1">Создай свой первый набор слов.</p>
+            <button onclick="openCreateSet()" class="mt-4 bg-indigo-600 text-white rounded-xl px-5 py-3 font-semibold">Создать набор</button>
+          </div>`}
+      </div>
+    </section>
+  `;
+}
+
+function openSet(id) {
+  selectedSetId = id;
+  renderSet();
+}
+
+function renderSet() {
+  const set = getSet();
+  if (!set) return goHome();
+  const p = getProgress(set);
+  const main = document.getElementById('main');
+
+  main.innerHTML = `
+    <div class="mb-5">
+      <button onclick="goHome()" class="text-sm text-slate-500 hover:text-indigo-600 mb-4">← Все наборы</button>
+      <div class="flex justify-between items-start gap-3">
+        <div class="min-w-0">
+          <h1 class="text-2xl md:text-3xl font-bold break-words">${escapeHTML(set.name)}</h1>
+          <p class="text-sm text-slate-500 mt-2">${escapeHTML(set.description || 'Без описания')}</p>
+        </div>
+        <button onclick="openSetMenu('${set.id}')" class="w-10 h-10 flex-shrink-0 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xl">⋯</button>
+      </div>
+    </div>
+
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 mb-6">
+      <div class="flex justify-between items-center mb-2">
+        <span class="text-sm font-semibold">Твой прогресс</span>
+        <span class="text-sm font-bold text-indigo-600">${p.percent}%</span>
+      </div>
+      <div class="h-2.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+        <div class="h-full bg-indigo-500 rounded-full progress-fill" style="width:${p.percent}%"></div>
+      </div>
+      <p class="text-xs text-slate-500 mt-2">Выучено ${p.learned} из ${p.total} слов</p>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
+      <button onclick="startStudy('cards')" class="rounded-2xl bg-indigo-600 text-white p-5 text-left hover:bg-indigo-700 transition">
+        <div class="text-2xl mb-3">🃏</div>
+        <div class="font-bold">Карточки</div>
+        <div class="text-indigo-200 text-xs mt-1">Запоминай слова</div>
+      </button>
+      <button onclick="startStudy('test')" class="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 text-left hover:border-indigo-400 transition">
+        <div class="text-2xl mb-3">🎯</div>
+        <div class="font-bold">Тест</div>
+        <div class="text-slate-500 text-xs mt-1">Выбирай перевод</div>
+      </button>
+      <button onclick="startStudy('write')" class="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 text-left hover:border-indigo-400 transition">
+        <div class="text-2xl mb-3">✍️</div>
+        <div class="font-bold">Письмо</div>
+        <div class="text-slate-500 text-xs mt-1">Вводи слово сам</div>
+      </button>
+    </div>
+
+    <section>
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-lg font-bold">Слова в наборе</h2>
+        <button onclick="openWordEditor()" class="text-sm text-indigo-600 dark:text-indigo-400 font-semibold">+ Добавить</button>
+      </div>
+      <div class="flex gap-2 flex-wrap mb-4">
+        <button onclick="openBulkImport()" class="text-xs font-semibold px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800">Массовый импорт</button>
+        <button onclick="exportSet('${set.id}')" class="text-xs font-semibold px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800">Экспорт набора</button>
+      </div>
+      <div class="space-y-2">
+        ${set.words.length ? set.words.map(word => `
+          <div class="flex items-center gap-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3">
+            <div class="w-9 h-9 flex-shrink-0 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 flex items-center justify-center font-bold">A</div>
+            <div class="flex-1 min-w-0">
+              <div class="font-semibold truncate">${escapeHTML(word.front)}</div>
+              <div class="text-sm text-slate-500 truncate">${escapeHTML(word.back)}</div>
+            </div>
+            ${set.learned?.includes(word.id) ? '<span class="text-emerald-500 text-xs">✓</span>' : ''}
+            <button onclick="speak('${escapeJS(word.front)}')" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Озвучить">🔊</button>
+            <button onclick="editWord('${word.id}')" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Изменить">✏️</button>
+            <button onclick="deleteWord('${word.id}')" class="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-red-500" aria-label="Удалить">×</button>
+          </div>`).join('') : '<p class="text-sm text-slate-500 text-center py-8">В этом наборе пока нет слов.</p>'}
+      </div>
+    </section>
+  `;
+}
+
+function escapeJS(value) {
+  return String(value ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/[\r\n]/g, ' ');
+}
+
+function openCreateSet() {
+  showModal('Создать набор', `
+    <form id="setForm" class="space-y-4">
+      <div>
+        <label class="block text-sm font-semibold mb-2">Название</label>
+        <input id="setName" required maxlength="80" placeholder="Например, Английский A2" class="w-full rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-3">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold mb-2">Описание</label>
+        <textarea id="setDescription" rows="2" maxlength="250" placeholder="Краткое описание набора" class="w-full rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-3 resize-none"></textarea>
+      </div>
+      <button class="w-full rounded-xl bg-indigo-600 text-white py-3 font-bold">Создать</button>
+    </form>
+  `);
+  document.getElementById('setForm').onsubmit = event => {
+    event.preventDefault();
+    const name = document.getElementById('setName').value.trim();
+    if (!name) return;
+    data.sets.push({
+      id: makeId(),
+      name,
+      description: document.getElementById('setDescription').value.trim(),
+      words: [],
+      learned: []
+    });
+    saveData();
+    closeModal();
+    renderHome();
+  };
+}
+
+function editSet(id) {
+  const set = getSet(id);
+  if (!set) return;
+  showModal('Редактировать набор', `
+    <form id="editSetForm" class="space-y-4">
+      <div>
+        <label class="block text-sm font-semibold mb-2">Название</label>
+        <input id="editSetName" required maxlength="80" value="${escapeHTML(set.name)}" class="w-full rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-3">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold mb-2">Описание</label>
+        <textarea id="editSetDescription" rows="3" maxlength="250" class="w-full rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-3 resize-none">${escapeHTML(set.description || '')}</textarea>
+      </div>
+      <button class="w-full rounded-xl bg-indigo-600 text-white py-3 font-bold">Сохранить изменения</button>
+    </form>
+  `);
+  document.getElementById('editSetForm').onsubmit = event => {
+    event.preventDefault();
+    set.name = document.getElementById('editSetName').value.trim();
+    set.description = document.getElementById('editSetDescription').value.trim();
+    saveData();
+    closeModal();
+    renderSet();
+  };
+}
+
+function openSetMenu(id) {
+  const set = getSet(id);
+  if (!set) return;
+  showModal('Управление набором', `
+    <div class="space-y-2">
+      <button onclick="closeModal();editSet('${id}')" class="w-full text-left p-4 rounded-xl bg-slate-100 dark:bg-slate-800 font-semibold">✏️ Редактировать набор</button>
+      <button onclick="closeModal();openBulkImport('${id}')" class="w-full text-left p-4 rounded-xl bg-slate-100 dark:bg-slate-800 font-semibold">📥 Импортировать слова</button>
+      <button onclick="closeModal();exportSet('${id}')" class="w-full text-left p-4 rounded-xl bg-slate-100 dark:bg-slate-800 font-semibold">📤 Экспортировать набор</button>
+      <button onclick="deleteSet('${id}')" class="w-full text-left p-4 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-600 font-semibold">🗑️ Удалить набор</button>
+    </div>
+  `);
+}
+
+function deleteSet(id) {
+  if (!confirm('Удалить этот набор вместе со всеми его словами?')) return;
+  data.sets = data.sets.filter(set => set.id !== id);
+  saveData();
+  selectedSetId = null;
+  closeModal();
+  renderHome();
+}
+
+function openWordEditor(wordId = null) {
+  const set = getSet();
+  if (!set) return;
+  const word = wordId ? set.words.find(item => item.id === wordId) : null;
+  showModal(word ? 'Редактировать слово' : 'Новое слово', `
+    <form id="wordForm" class="space-y-4">
+      <div>
+        <label class="block text-sm font-semibold mb-2">Английское слово</label>
+        <input id="wordFront" required maxlength="120" value="${escapeHTML(word?.front || '')}" placeholder="Apple" class="w-full rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-3">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold mb-2">Перевод</label>
+        <input id="wordBack" required maxlength="180" value="${escapeHTML(word?.back || '')}" placeholder="Яблоко" class="w-full rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-3">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold mb-2">Пример предложения (необязательно)</label>
+        <textarea id="wordExample" rows="2" maxlength="300" placeholder="I eat an apple every day." class="w-full rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-3 resize-none">${escapeHTML(word?.example || '')}</textarea>
+      </div>
+      <div>
+        <label class="block text-sm font-semibold mb-2">Перевод примера (необязательно)</label>
+        <textarea id="wordExampleTranslation" rows="2" maxlength="300" placeholder="Я ем яблоко каждый день." class="w-full rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-3 resize-none">${escapeHTML(word?.exampleTranslation || '')}</textarea>
+      </div>
+      <button class="w-full rounded-xl bg-indigo-600 text-white py-3 font-bold">Сохранить слово</button>
+    </form>
+  `);
+  document.getElementById('wordForm').onsubmit = event => {
+    event.preventDefault();
+    const front = document.getElementById('wordFront').value.trim();
+    const back = document.getElementById('wordBack').value.trim();
+    const example = document.getElementById('wordExample').value.trim();
+    const exampleTranslation = document.getElementById('wordExampleTranslation').value.trim();
+    if (!front || !back) return;
+    if (word) {
+      word.front = front;
+      word.back = back;
+      word.example = example;
+      word.exampleTranslation = exampleTranslation;
+    } else {
+      set.words.push({ id: makeId(), front, back, example, exampleTranslation });
+    }
+    saveData();
+    closeModal();
+    renderSet();
+  };
+}
+
+function editWord(id) {
+  openWordEditor(id);
+}
+
+function deleteWord(id) {
+  const set = getSet();
+  if (!set || !confirm('Удалить это слово?')) return;
+  set.words = set.words.filter(word => word.id !== id);
+  set.learned = (set.learned || []).filter(wordId => wordId !== id);
+  saveData();
+  renderSet();
+}
+
+function openBulkImport(id = selectedSetId) {
+  const set = getSet(id);
+  if (!set) return;
+  showModal('Импорт карточек', `
+    <div class="space-y-3">
+      <div class="rounded-xl bg-indigo-50 dark:bg-indigo-950/30 p-3 text-sm">
+        <div class="font-semibold text-indigo-700 dark:text-indigo-300 mb-1">Импорт из Quizlet</div>
+        <ol class="list-decimal pl-5 space-y-1 text-slate-600 dark:text-slate-300">
+          <li>В Quizlet открой набор → меню <b>⋯</b> → <b>Экспорт</b>.</li>
+          <li>Выбери между термином и определением <b>табуляцию</b>, а между карточками — <b>новую строку</b>.</li>
+          <li>Нажми «Копировать» и вставь результат ниже.</li>
+        </ol>
+      </div>
+      <p class="text-xs text-slate-500">Также можно выбрать сохранённый файл TXT, TSV или CSV. Формат распознаётся автоматически.</p>
+      <input id="bulkFile" type="file" accept=".txt,.tsv,.csv,text/plain,text/tab-separated-values,text/csv"
+        class="block w-full text-sm text-slate-500 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 dark:file:bg-slate-800 file:px-3 file:py-2 file:font-semibold">
+      <form id="bulkForm" class="space-y-3">
+        <textarea id="bulkText" required rows="9" placeholder="Вставь экспорт Quizlet сюда…&#10;abandon[TAB]покидать&#10;achieve[TAB]достигать"
+          class="w-full rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-3 resize-y text-sm"></textarea>
+        <div id="bulkImportStatus" class="text-xs text-slate-500">Поддерживаются табуляция Quizlet, CSV с точкой с запятой и старый формат «слово - перевод».</div>
+        <button class="w-full rounded-xl bg-indigo-600 text-white py-3 font-bold">Импортировать карточки</button>
+      </form>
+    </div>
+  `);
+
+  const textArea = document.getElementById('bulkText');
+  const fileInput = document.getElementById('bulkFile');
+  const status = document.getElementById('bulkImportStatus');
+
+  fileInput.onchange = async () => {
+    const file = fileInput.files && fileInput.files[0];
+    if (!file) return;
+    textArea.value = (await file.text()).replace(/^\uFEFF/, '');
+    status.textContent = 'Файл загружен: ' + file.name;
+  };
+
+  document.getElementById('bulkForm').onsubmit = event => {
+    event.preventDefault();
+    const raw = textArea.value.replace(/^\uFEFF/, '').replace(/\r/g, '');
+    const lines = raw.split('\n').map(line => line.trim()).filter(Boolean);
+    let added = 0;
+    let skipped = 0;
+
+    // Quizlet export defaults to one card per line and a TAB between term and definition.
+    // Also accept semicolon-separated CSV and the app's previous "term - definition" format.
+    const sample = lines.slice(0, 10);
+    const tabCount = sample.reduce((n, line) => n + (line.match(/\t/g) || []).length, 0);
+    const semicolonCount = sample.reduce((n, line) => n + (line.match(/;/g) || []).length, 0);
+    const delimiter = tabCount > 0 ? '\t' : (semicolonCount > 0 ? ';' : null);
+
+    function splitQuoted(line, sep) {
+      const result = [];
+      let field = '';
+      let quoted = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '"') {
+          if (quoted && line[i + 1] === '"') { field += '"'; i++; }
+          else quoted = !quoted;
+        } else if (ch === sep && !quoted) {
+          result.push(field.trim());
+          field = '';
+        } else {
+          field += ch;
+        }
+      }
+      result.push(field.trim());
+      return result;
+    }
+
+    lines.forEach(line => {
+      let front = '';
+      let back = '';
+      if (delimiter) {
+        const fields = splitQuoted(line, delimiter);
+        if (fields.length >= 2) {
+          front = fields[0];
+          back = fields.slice(1).join(delimiter).trim();
+        }
+      } else {
+        const match = line.match(/^(.+?)\s+(?:-|—|–)\s+(.+)$/);
+        if (match) { front = match[1].trim(); back = match[2].trim(); }
+        else {
+          const fields = line.split('|').map(value => value.trim());
+          if (fields.length >= 2) { front = fields[0]; back = fields[1]; }
+        }
+      }
+
+      // Ignore common header rows from manually prepared spreadsheets.
+      if (/^(term|word|термин|слово)$/i.test(front) && /^(definition|meaning|translation|определение|перевод)$/i.test(back)) {
+        skipped++;
+        return;
+      }
+      if (!front || !back) { skipped++; return; }
+
+      set.words.push({
+        id: makeId(),
+        front,
+        back,
+        example: '',
+        exampleTranslation: ''
+      });
+      added++;
+    });
+
+    if (!added) {
+      alert('Не удалось распознать карточки. В Quizlet выбери табуляцию между термином и определением и новую строку между карточками.');
+      return;
+    }
+    saveData();
+    closeModal();
+    if (selectedSetId === id) renderSet();
+    alert('Импортировано карточек: ' + added + (skipped ? '\\nПропущено строк: ' + skipped : ''));
+  };
+}
+
+function exportJSON() {
+  downloadJSON(data, 'lingua-all-sets.json');
+}
+
+function exportSet(id) {
+  const set = getSet(id);
+  if (!set) return;
+  downloadJSON(set, 'lingua-' + safeFilename(set.name) + '.json');
+}
+
+function safeFilename(value) {
+  return String(value).toLowerCase().replace(/[^a-z0-9а-яё_-]+/gi, '-').replace(/^-|-$/g, '') || 'set';
+}
+
+function downloadJSON(object, filename) {
+  const blob = new Blob([JSON.stringify(object, null, 2)], { type: 'application/json;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function importJSON() {
+  const fileInput = document.getElementById('jsonFile');
+  fileInput.value = '';
+  fileInput.onchange = async () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+    try {
+      const parsed = JSON.parse(await file.text());
+      if (Array.isArray(parsed.sets)) {
+        parsed.sets.forEach(set => addImportedSet(set));
+      } else if (parsed && Array.isArray(parsed.words)) {
+        addImportedSet(parsed);
+      } else {
+        throw new Error('Неверный формат');
+      }
+      saveData();
+      renderHome();
+      alert('Импорт завершён.');
+    } catch (error) {
+      alert('Не удалось импортировать файл. Проверь его JSON-структуру.');
+    }
+  };
+  fileInput.click();
+}
+
+function addImportedSet(source) {
+  if (!source || !Array.isArray(source.words)) throw new Error('Неверный набор');
+  const words = source.words.map(word => {
+    const front = String(word.front ?? word.term ?? word.word ?? '').trim();
+    const back = String(word.back ?? word.definition ?? word.translation ?? '').trim();
+    if (!front || !back) return null;
+    return {
+      id: makeId(),
+      front,
+      back,
+      example: String(word.example || ''),
+      exampleTranslation: String(word.exampleTranslation || word.example_translation || '')
+    };
+  }).filter(Boolean);
+  data.sets.push({
+    id: makeId(),
+    name: String(source.name || source.title || 'Импортированный набор'),
+    description: String(source.description || ''),
+    words,
+    learned: []
+  });
+}
+
+function startStudy(mode) {
+  const set = getSet();
+  if (!set || !set.words.length) {
+    alert('Сначала добавь слова в набор.');
+    return;
+  }
+  currentMode = mode;
+  studyWords = [...set.words].sort(() => Math.random() - 0.5);
+  currentIndex = 0;
+  isFlipped = false;
+  testScore = 0;
+  testTotal = 0;
+  writeScore = 0;
+  writeTotal = 0;
+  if (mode === 'cards') renderCards();
+  if (mode === 'test') nextTestQuestion();
+  if (mode === 'write') nextWriteQuestion();
+}
+
+function endStudy() {
+  renderSet();
+}
+
+function speak(text) {
+  if (!('speechSynthesis' in window)) {
+    alert('Озвучка не поддерживается этим браузером.');
+    return;
+  }
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = 'en-US';
+  utterance.rate = 0.85;
+  window.speechSynthesis.speak(utterance);
+}
+
+function renderCards() {
+  const set = getSet();
+  if (!set) return goHome();
+  const word = studyWords[currentIndex];
+  const learned = set.learned || [];
+  const known = learned.includes(word.id);
+
+  document.getElementById('main').innerHTML = `
+    <div class="max-w-xl mx-auto">
+      <div class="flex items-center justify-between mb-6">
+        <button onclick="endStudy()" class="text-sm text-slate-500 hover:text-indigo-600">← Выйти</button>
+        <span class="text-sm font-semibold text-slate-500">Карточки</span>
+        <span class="text-sm font-bold">${currentIndex + 1} / ${studyWords.length}</span>
+      </div>
+      <div class="h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden mb-8">
+        <div class="h-full rounded-full bg-indigo-500 progress-fill" style="width:${(currentIndex + 1) / studyWords.length * 100}%"></div>
+      </div>
+      <div class="text-center mb-4">
+        <p class="text-sm text-slate-500">Нажми на карточку, чтобы увидеть перевод</p>
+      </div>
+      <div class="card-scene mb-6" id="cardScene">
+        <div class="flashcard ${isFlipped ? 'flipped' : ''}" id="flashcard" onclick="flipCard()">
+          <div class="card-face bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm">
+            <span class="absolute top-5 left-5 text-xs font-semibold uppercase tracking-wider text-slate-400">English</span>
+            <div class="text-3xl md:text-4xl font-bold text-center break-words">${escapeHTML(word.front)}</div>
+            <button onclick="event.stopPropagation();speak('${escapeJS(word.front)}')" class="mt-7 rounded-full w-12 h-12 bg-indigo-50 dark:bg-indigo-950 text-indigo-600 text-xl">🔊</button>
+            <span class="absolute bottom-5 text-xs text-slate-400">Нажми, чтобы перевернуть</span>
+          </div>
+          <div class="card-face card-back bg-indigo-600 text-white shadow-sm">
+            <span class="absolute top-5 left-5 text-xs font-semibold uppercase tracking-wider text-indigo-200">Перевод</span>
+            <div class="text-3xl md:text-4xl font-bold text-center break-words">${escapeHTML(word.back)}</div>
+            ${word.example ? `<p class="text-sm text-indigo-100 text-center mt-5">${escapeHTML(word.example)}</p>` : ''}
+            <span class="absolute bottom-5 text-xs text-indigo-200">Нажми, чтобы вернуться</span>
+          </div>
+        </div>
+      </div>
+      <div class="flex justify-center items-center gap-2 mb-6 text-sm text-slate-500">
+        <span>${known ? '✓ Уже отмечено как выученное' : 'Ещё не выучено'}</span>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <button onclick="cardAnswer(false)" class="rounded-xl border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 py-4 font-bold">↻ Повторить</button>
+        <button onclick="cardAnswer(true)" class="rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white py-4 font-bold">✓ Знаю</button>
+      </div>
+      <div class="flex justify-between mt-5">
+        <button onclick="previousCard()" ${currentIndex === 0 ? 'disabled' : ''} class="text-sm text-slate-500 disabled:opacity-30">← Назад</button>
+        <button onclick="nextCard()" class="text-sm text-indigo-600 dark:text-indigo-400 font-semibold">Пропустить →</button>
+      </div>
+    </div>
+  `;
+
+  const scene = document.getElementById('cardScene');
+  scene.addEventListener('touchstart', event => {
+    swipeStartX = event.changedTouches[0].clientX;
+    swipeStartY = event.changedTouches[0].clientY;
+  }, { passive: true });
+  scene.addEventListener('touchend', event => {
+    if (swipeStartX === null) return;
+    const dx = event.changedTouches[0].clientX - swipeStartX;
+    const dy = event.changedTouches[0].clientY - swipeStartY;
+    if (Math.abs(dx) > 65 && Math.abs(dx) > Math.abs(dy)) {
+      if (dx > 0) cardAnswer(true);
+      else cardAnswer(false);
+    }
+    swipeStartX = null;
+    swipeStartY = null;
+  }, { passive: true });
+}
+
+function flipCard() {
+  isFlipped = !isFlipped;
+  const card = document.getElementById('flashcard');
+  if (card) card.classList.toggle('flipped', isFlipped);
+}
+
+function cardAnswer(known) {
+  const set = getSet();
+  const word = studyWords[currentIndex];
+  if (!set) return;
+  set.learned = set.learned || [];
+  if (known && !set.learned.includes(word.id)) set.learned.push(word.id);
+  if (!known) set.learned = set.learned.filter(id => id !== word.id);
+  saveData();
+  nextCard();
+}
+
+function nextCard() {
+  if (currentIndex < studyWords.length - 1) {
+    currentIndex++;
+    isFlipped = false;
+    renderCards();
+  } else {
+    showStudyComplete('Карточки завершены', 'Ты просмотрел все карточки этого раунда.');
+  }
+}
+
+function previousCard() {
+  if (currentIndex > 0) {
+    currentIndex--;
+    isFlipped = false;
+    renderCards();
+  }
+}
+
+function showStudyComplete(title, message) {
+  const set = getSet();
+  const p = set ? getProgress(set) : { learned: 0, total: 0, percent: 0 };
+  document.getElementById('main').innerHTML = `
+    <div class="max-w-md mx-auto text-center py-12">
+      <div class="text-6xl mb-5">🎉</div>
+      <h1 class="text-3xl font-bold mb-3">${escapeHTML(title)}</h1>
+      <p class="text-slate-500 mb-8">${escapeHTML(message)}</p>
+      <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 mb-6">
+        <div class="text-3xl font-bold text-indigo-600">${p.percent}%</div>
+        <div class="text-sm text-slate-500 mt-1">Общий прогресс набора</div>
+        <div class="text-sm mt-4">${p.learned} из ${p.total} слов выучено</div>
+      </div>
+      <button onclick="renderSet()" class="w-full rounded-xl bg-indigo-600 text-white py-3 font-bold">Вернуться к набору</button>
+    </div>
+  `;
+}
+
+function nextTestQuestion() {
+  if (currentIndex >= studyWords.length) {
+    showQuizResult('Тест завершён', testScore, testTotal);
+    return;
+  }
+  const set = getSet();
+  const word = studyWords[currentIndex];
+  const alternatives = set.words.filter(item => item.id !== word.id).sort(() => Math.random() - .5).slice(0, 3);
+  const options = [...alternatives, word].sort(() => Math.random() - .5);
+  testQuestion = { word, options, answered: false };
+  renderTest();
+}
+
+function renderTest() {
+  const question = testQuestion;
+  if (!question) return;
+  document.getElementById('main').innerHTML = `
+    <div class="max-w-xl mx-auto">
+      <div class="flex items-center justify-between mb-6">
+        <button onclick="endStudy()" class="text-sm text-slate-500">← Выйти</button>
+        <span class="text-sm font-semibold text-slate-500">Тест</span>
+        <span class="text-sm font-bold">${currentIndex + 1} / ${studyWords.length}</span>
+      </div>
+      <div class="h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden mb-8">
+        <div class="h-full bg-indigo-500 rounded-full" style="width:${currentIndex / studyWords.length * 100}%"></div>
+      </div>
+      <div class="text-center mb-8">
+        <p class="text-sm text-slate-500 mb-4">Выбери правильный перевод</p>
+        <h1 class="text-3xl font-bold mb-3">${escapeHTML(question.word.front)}</h1>
+        <button onclick="speak('${escapeJS(question.word.front)}')" class="text-indigo-600 text-sm font-semibold">🔊 Прослушать</button>
+      </div>
+      <div class="space-y-3" id="testOptions">
+        ${question.options.map(option => `
+          <button onclick="answerTest('${option.id}')" data-id="${option.id}" class="option-btn w-full text-left p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-medium">
+            ${escapeHTML(option.back)}
+          </button>
+        `).join('')}
+      </div>
+      <div id="testFeedback" class="mt-5"></div>
+      <div class="text-center mt-5 text-sm text-slate-500">Правильных ответов: ${testScore} / ${testTotal}</div>
+    </div>
+  `;
+}
+
+function answerTest(id) {
+  if (testQuestion.answered) return;
+  testQuestion.answered = true;
+  const correct = id === testQuestion.word.id;
+  testTotal++;
+  if (correct) testScore++;
+  const buttons = document.querySelectorAll('#testOptions button');
+  buttons.forEach(button => {
+    button.disabled = true;
+    const optionId = button.dataset.id;
+    if (optionId === testQuestion.word.id) {
+      button.classList.add('border-emerald-500', 'bg-emerald-50', 'dark:bg-emerald-950/30');
+    } else if (optionId === id) {
+      button.classList.add('border-red-500', 'bg-red-50', 'dark:bg-red-950/30');
+    }
+  });
+  const feedback = document.getElementById('testFeedback');
+  feedback.innerHTML = `
+    <div class="rounded-xl p-4 ${correct ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300' : 'bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300'}">
+      <div class="font-bold">${correct ? '✓ Правильно!' : '✗ Неправильно'}</div>
+      <div class="text-sm mt-1">${correct ? 'Отличная работа.' : 'Правильный ответ: ' + escapeHTML(testQuestion.word.back)}</div>
+    </div>
+    <button onclick="currentIndex++;nextTestQuestion()" class="w-full mt-3 rounded-xl bg-indigo-600 text-white py-3 font-bold">Следующий вопрос →</button>
+  `;
+}
+
+function showQuizResult(title, score, total) {
+  const percent = total ? Math.round(score / total * 100) : 0;
+  document.getElementById('main').innerHTML = `
+    <div class="max-w-md mx-auto text-center py-12">
+      <div class="text-6xl mb-5">${percent >= 80 ? '🏆' : '💪'}</div>
+      <h1 class="text-3xl font-bold mb-3">${title}</h1>
+      <p class="text-slate-500 mb-8">Результаты твоей тренировки</p>
+      <div class="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-7 mb-6">
+        <div class="text-5xl font-black text-indigo-600">${percent}%</div>
+        <div class="text-slate-500 mt-2">Правильных ответов</div>
+        <div class="mt-5 font-bold">${score} из ${total}</div>
+      </div>
+      <button onclick="renderSet()" class="w-full rounded-xl bg-indigo-600 text-white py-3 font-bold">Вернуться к набору</button>
+    </div>
+  `;
+}
+
+function nextWriteQuestion() {
+  if (currentIndex >= studyWords.length) {
+    showQuizResult('Тренировка завершена', writeScore, writeTotal);
+    return;
+  }
+  writeQuestion = studyWords[currentIndex];
+  renderWrite();
+}
+
+function renderWrite() {
+  const word = writeQuestion;
+  document.getElementById('main').innerHTML = `
+    <div class="max-w-xl mx-auto">
+      <div class="flex items-center justify-between mb-6">
+        <button onclick="endStudy()" class="text-sm text-slate-500">← Выйти</button>
+        <span class="text-sm font-semibold text-slate-500">Письмо</span>
+        <span class="text-sm font-bold">${currentIndex + 1} / ${studyWords.length}</span>
+      </div>
+      <div class="h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden mb-8">
+        <div class="h-full bg-indigo-500 rounded-full" style="width:${currentIndex / studyWords.length * 100}%"></div>
+      </div>
+      <div class="text-center mb-8">
+        <p class="text-sm text-slate-500 mb-4">Напиши английское слово по переводу</p>
+        <h1 class="text-3xl font-bold">${escapeHTML(word.back)}</h1>
+      </div>
+      <form id="writeForm" class="space-y-4">
+        <input id="writeInput" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Введи слово на английском..." class="w-full text-center text-xl rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-4">
+        <button class="w-full rounded-xl bg-indigo-600 text-white py-4 font-bold">Проверить ответ</button>
+      </form>
+      <div id="writeFeedback" class="mt-4"></div>
+      <div class="text-center mt-5 text-sm text-slate-500">Правильных ответов: ${writeScore} / ${writeTotal}</div>
+    </div>
+  `;
+  document.getElementById('writeForm').onsubmit = event => {
+    event.preventDefault();
+    checkWrite();
+  };
+  document.getElementById('writeInput').focus();
+}
+
+function checkWrite() {
+  const input = document.getElementById('writeInput');
+  const answer = input.value.trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!answer) {
+    input.focus();
+    return;
+  }
+  const correctAnswer = writeQuestion.front.toLowerCase().trim().replace(/\s+/g, ' ');
+  const correct = answer === correctAnswer;
+  writeTotal++;
+  if (correct) writeScore++;
+  input.disabled = true;
+  document.querySelector('#writeForm button').disabled = true;
+  document.getElementById('writeFeedback').innerHTML = `
+    <div class="rounded-xl p-4 ${correct ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300' : 'bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300'}">
+      <div class="font-bold">${correct ? '✓ Верно!' : '✗ Есть ошибка'}</div>
+      <div class="text-sm mt-1">${correct ? 'Отлично, ты написал правильно.' : 'Правильное написание: ' + escapeHTML(writeQuestion.front)}</div>
+    </div>
+    <button onclick="currentIndex++;nextWriteQuestion()" class="w-full mt-3 rounded-xl bg-indigo-600 text-white py-3 font-bold">Следующее слово →</button>
+  `;
+}
+
+function showModal(title, content) {
+  const root = document.getElementById('modalRoot');
+  root.innerHTML = `
+    <div class="modal-backdrop fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4" onclick="if(event.target===this)closeModal()">
+      <div class="modal-panel w-full sm:max-w-md max-h-[90dvh] overflow-y-auto bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl p-5 sm:p-6 shadow-2xl">
+        <div class="flex items-center justify-between mb-5">
+          <h2 class="text-xl font-bold">${escapeHTML(title)}</h2>
+          <button onclick="closeModal()" class="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 text-xl">×</button>
+        </div>
+        ${content}
+      </div>
+    </div>
+  `;
+}
+
+function closeModal() {
+  document.getElementById('modalRoot').innerHTML = '';
+}
+
+function toggleTheme() {
+  const isDark = document.documentElement.classList.toggle('dark');
+  localStorage.setItem(THEME_KEY, isDark ? 'dark' : 'light');
+  updateThemeButton();
+}
+
+function updateThemeButton() {
+  const button = document.getElementById('themeBtn');
+  if (!button) return;
+  button.textContent = document.documentElement.classList.contains('dark') ? '☀️' : '🌙';
+}
+
+function initializeTheme() {
+  let theme = 'light';
+  try {
+    theme = localStorage.getItem(THEME_KEY) || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  } catch (error) {}
+  document.documentElement.classList.toggle('dark', theme === 'dark');
+  updateThemeButton();
+}
+
+
+/* ---------------- Lingua 2.0: spaced repetition ---------------- */
+const REVIEW_MINUTES_AGAIN = 10;
+function ensureReviewData(word) {
+  if (!Number.isFinite(word.intervalDays)) word.intervalDays = 0;
+  if (!Number.isFinite(word.repetitions)) word.repetitions = 0;
+  if (!Number.isFinite(word.lapses)) word.lapses = 0;
+  if (!Number.isFinite(word.mistakeCount)) word.mistakeCount = 0;
+  if (!Number.isFinite(word.easeFactor)) word.easeFactor = 2.5;
+  if (!Number.isFinite(word.dueAt)) word.dueAt = 0;
+  return word;
+}
+function reviewWord(word, quality) {
+  ensureReviewData(word);
+  const now = Date.now();
+  if (quality <= 0) {
+    word.lapses += 1;
+    word.mistakeCount += 1;
+    word.repetitions = 0;
+    word.intervalDays = 0;
+    word.dueAt = now + REVIEW_MINUTES_AGAIN * 60 * 1000;
+    word.easeFactor = Math.max(1.3, word.easeFactor - 0.2);
+  } else {
+    if (quality === 1) {
+      word.intervalDays = word.repetitions === 0 ? 1 : Math.max(1, Math.round(word.intervalDays * 1.2));
+      word.easeFactor = Math.max(1.3, word.easeFactor - 0.05);
+    } else {
+      word.intervalDays = word.repetitions === 0 ? 3 : word.repetitions === 1 ? 7 : Math.max(1, Math.round(word.intervalDays * word.easeFactor));
+      if (quality === 3) word.easeFactor = Math.min(3.0, word.easeFactor + 0.1);
+    }
+    word.repetitions += 1;
+    word.dueAt = now + word.intervalDays * 24 * 60 * 60 * 1000;
+  }
+  word.lastReviewedAt = now;
+  const set = getSet();
+  if (set) {
+    set.learned = set.learned || [];
+    if (word.repetitions >= 3 && word.intervalDays >= 14) {
+      if (!set.learned.includes(word.id)) set.learned.push(word.id);
+    } else {
+      set.learned = set.learned.filter(id => id !== word.id);
+    }
+  }
+  saveData();
+}
+function dueWords(set) {
+  const now = Date.now();
+  return set.words.filter(word => !ensureReviewData(word).dueAt || word.dueAt <= now);
+}
+function mistakeWords(set) {
+  return set.words.filter(word => {
+    ensureReviewData(word);
+    return word.mistakeCount > 0 || word.lapses > 0;
+  }).sort((a,b) => (b.mistakeCount + b.lapses) - (a.mistakeCount + a.lapses));
+}
+function startStudy(mode) {
+  const set = getSet();
+  if (!set || !set.words.length) { alert('Сначала добавь слова в набор.'); return; }
+  currentMode = mode;
+  if (mode === 'review') studyWords = dueWords(set);
+  else if (mode === 'mistakes') studyWords = mistakeWords(set);
+  else studyWords = [...set.words].sort(() => Math.random() - 0.5);
+  if (!studyWords.length) {
+    alert(mode === 'review' ? 'На сегодня повторений нет. Отличная работа!' : 'Ошибок пока нет. Продолжай заниматься!');
+    return;
+  }
+  currentIndex = 0; isFlipped = false;
+  testScore = 0; testTotal = 0; writeScore = 0; writeTotal = 0;
+  if (mode === 'cards' || mode === 'review' || mode === 'mistakes') renderCards();
+  if (mode === 'test') nextTestQuestion();
+  if (mode === 'write') nextWriteQuestion();
+}
+function renderSet() {
+  const set = getSet();
+  if (!set) return goHome();
+  set.words.forEach(ensureReviewData);
+  const p = getProgress(set);
+  const due = dueWords(set).length;
+  const mistakes = mistakeWords(set).length;
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="mb-7">
+      <button onclick="goHome()" class="text-sm text-slate-500 hover:text-indigo-600 mb-4">← Все наборы</button>
+      <div class="flex justify-between items-start gap-3">
+        <div class="min-w-0">
+          <h1 class="text-2xl md:text-3xl font-bold break-words">${escapeHTML(set.name)}</h1>
+          <p class="text-sm text-slate-500 mt-2">${escapeHTML(set.description || 'Без описания')}</p>
+        </div>
+        <button onclick="openSetMenu('${set.id}')" class="w-10 h-10 flex-shrink-0 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xl">⋯</button>
+      </div>
+    </div>
+    <div class="grid grid-cols-3 gap-2 mb-6">
+      <div class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3"><div class="text-xl font-bold">${set.words.length}</div><div class="text-xs text-slate-500">Всего слов</div></div>
+      <div class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3"><div class="text-xl font-bold text-indigo-600">${due}</div><div class="text-xs text-slate-500">К повторению</div></div>
+      <div class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3"><div class="text-xl font-bold text-rose-500">${mistakes}</div><div class="text-xs text-slate-500">С ошибками</div></div>
+    </div>
+    <div class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 mb-6">
+      <div class="flex justify-between items-center mb-2"><span class="text-sm font-semibold">Выучено</span><span class="text-sm font-bold text-indigo-600">${p.percent}%</span></div>
+      <div class="h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden"><div class="h-full bg-indigo-500 rounded-full" style="width:${p.percent}%"></div></div>
+    </div>
+    <section class="mb-8">
+      <h2 class="text-lg font-bold mb-3">Учиться</h2>
+      <div class="grid grid-cols-2 gap-3">
+        <button onclick="startStudy('review')" class="col-span-2 rounded-xl bg-indigo-50 dark:bg-indigo-600 border border-indigo-200 dark:border-indigo-500 text-slate-900 dark:text-white p-4 text-left transition-colors">
+          <div class="flex justify-between items-center"><span class="font-semibold">Повторить сегодня</span><span class="text-sm opacity-80">${due} слов →</span></div>
+          <p class="text-xs text-indigo-700 dark:text-indigo-100 mt-1">Интервальное повторение</p>
+        </button>
+        <button onclick="startStudy('cards')" class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 text-left"><div class="font-semibold">Карточки</div><div class="text-xs text-slate-500 mt-1">Все слова</div></button>
+        <button onclick="startStudy('mistakes')" class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 text-left"><div class="font-semibold">Мои ошибки</div><div class="text-xs text-slate-500 mt-1">${mistakes} слов</div></button>
+        <button onclick="startStudy('test')" class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 text-left"><div class="font-semibold">Тест</div><div class="text-xs text-slate-500 mt-1">Выбери перевод</div></button>
+        <button onclick="startStudy('write')" class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 text-left"><div class="font-semibold">Письмо</div><div class="text-xs text-slate-500 mt-1">Введи слово</div></button>
+      </div>
+    </section>
+    <section>
+      <div class="flex items-center justify-between mb-3"><h2 class="text-lg font-bold">Слова</h2><button onclick="openWordEditor()" class="text-sm text-indigo-600 dark:text-indigo-400 font-semibold">+ Добавить</button></div>
+      <div class="flex gap-2 flex-wrap mb-4">
+        <button onclick="openBulkImport()" class="text-xs font-semibold px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800">Массовый импорт</button>
+        <button onclick="exportSet('${set.id}')" class="text-xs font-semibold px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800">Экспорт набора</button>
+      </div>
+      <div class="space-y-2">
+        ${set.words.length ? set.words.map(word => {
+          ensureReviewData(word);
+          return `<div class="flex items-center gap-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3">
+            <div class="w-8 h-8 flex-shrink-0 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 flex items-center justify-center text-sm font-bold">A</div>
+            <div class="flex-1 min-w-0"><div class="font-semibold truncate">${escapeHTML(word.front)}</div><div class="text-sm text-slate-500 truncate">${escapeHTML(word.back)}</div>${word.example ? `<div class="text-xs text-slate-400 mt-1 truncate">${escapeHTML(word.example)}</div>` : ''}</div>
+            ${word.mistakeCount ? `<span class="text-xs text-rose-500" title="Ошибок: ${word.mistakeCount}">${word.mistakeCount}×</span>` : ''}
+            <button onclick="speak('${escapeJS(word.front)}')" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Озвучить">⌁</button>
+            <button onclick="editWord('${word.id}')" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Изменить">✎</button>
+            <button onclick="deleteWord('${word.id}')" class="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-red-500" aria-label="Удалить">×</button>
+          </div>`;
+        }).join('') : '<p class="text-sm text-slate-500 text-center py-8">В этом наборе пока нет слов.</p>'}
+      </div>
+    </section>`;
+  saveData();
+}
+function renderCards() {
+  const set = getSet();
+  if (!set) return goHome();
+  const word = studyWords[currentIndex];
+  const label = currentMode === 'review' ? 'Повторение' : currentMode === 'mistakes' ? 'Мои ошибки' : 'Карточки';
+  document.getElementById('main').innerHTML = `
+    <div class="max-w-xl mx-auto">
+      <div class="flex items-center justify-between mb-6">
+        <button onclick="endStudy()" class="text-sm text-slate-500">← Выйти</button>
+        <span class="text-sm font-semibold text-slate-500">${label}</span>
+        <span class="text-sm font-bold">${currentIndex + 1} / ${studyWords.length}</span>
+      </div>
+      <div class="h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden mb-8"><div class="h-full rounded-full bg-indigo-500 progress-fill" style="width:${(currentIndex + 1) / studyWords.length * 100}%"></div></div>
+      <p class="text-center text-sm text-slate-500 mb-4">Вспомни значение и переверни карточку</p>
+      <div class="card-scene mb-6" id="cardScene">
+        <div class="flashcard ${isFlipped ? 'flipped' : ''}" id="flashcard" onclick="flipCard()">
+          <div class="card-face bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+            <span class="absolute top-5 left-5 text-xs uppercase tracking-wider text-slate-400">English</span>
+            <div class="text-3xl md:text-4xl font-bold text-center break-words">${escapeHTML(word.front)}</div>
+            <button onclick="event.stopPropagation();speak('${escapeJS(word.front)}')" class="mt-7 rounded-full w-11 h-11 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-200">⌁</button>
+            <span class="absolute bottom-5 text-xs text-slate-400">Нажми, чтобы увидеть перевод</span>
+          </div>
+          <div class="card-face card-back bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-900 text-slate-900 dark:text-white">
+            <span class="absolute top-5 left-5 text-xs uppercase tracking-wider text-slate-400">Перевод</span>
+            <div class="text-2xl md:text-3xl font-bold text-center break-words">${escapeHTML(word.back)}</div>
+            ${word.example ? `<div class="mt-5 text-center max-w-full"><p class="text-sm font-medium text-indigo-700 dark:text-indigo-300">${escapeHTML(word.example)}</p>${word.exampleTranslation ? `<p class="text-xs text-slate-500 mt-1">${escapeHTML(word.exampleTranslation)}</p>` : ''}<button onclick="event.stopPropagation();speak('${escapeJS(word.example)}')" class="mt-2 text-xs text-slate-500">Прослушать пример</button></div>` : '<p class="text-xs text-slate-400 mt-4">Добавь пример в редакторе слова</p>'}
+            <span class="absolute bottom-5 text-xs text-slate-400">Оцени, насколько легко вспомнил</span>
+          </div>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <button onclick="cardAnswer(false)" class="rounded-xl border border-rose-200 dark:border-rose-900 bg-white dark:bg-slate-900 text-rose-600 py-4 font-semibold">Не вспомнил</button>
+        <button onclick="cardAnswer(true)" class="rounded-xl bg-slate-900 dark:bg-indigo-600 text-white py-4 font-semibold">Вспомнил</button>
+      </div>
+      <div class="flex justify-between mt-5"><button onclick="previousCard()" ${currentIndex === 0 ? 'disabled' : ''} class="text-sm text-slate-500 disabled:opacity-30">← Назад</button><button onclick="nextCard()" class="text-sm text-slate-500">Пропустить →</button></div>
+    </div>`;
+  const scene = document.getElementById('cardScene');
+  scene.addEventListener('touchstart', event => { swipeStartX = event.changedTouches[0].clientX; swipeStartY = event.changedTouches[0].clientY; }, {passive:true});
+  scene.addEventListener('touchend', event => {
+    if (swipeStartX === null) return;
+    const dx = event.changedTouches[0].clientX - swipeStartX, dy = event.changedTouches[0].clientY - swipeStartY;
+    if (Math.abs(dx) > 65 && Math.abs(dx) > Math.abs(dy)) { if (dx > 0) cardAnswer(true); else cardAnswer(false); }
+    swipeStartX = null; swipeStartY = null;
+  }, {passive:true});
+}
+function cardAnswer(known) {
+  const word = studyWords[currentIndex];
+  if (!word) return;
+  reviewWord(word, known ? 2 : 0);
+  nextCard();
+}
+function answerTest(id) {
+  if (testQuestion.answered) return;
+  testQuestion.answered = true;
+  const correct = id === testQuestion.word.id;
+  testTotal++; if (correct) testScore++;
+  reviewWord(testQuestion.word, correct ? 2 : 0);
+  document.querySelectorAll('#testOptions button').forEach(button => {
+    button.disabled = true;
+    const optionId = button.dataset.id;
+    if (optionId === testQuestion.word.id) button.classList.add('border-emerald-500','bg-emerald-50','dark:bg-emerald-950/30');
+    else if (optionId === id) button.classList.add('border-rose-500','bg-rose-50','dark:bg-rose-950/30');
+  });
+  document.getElementById('testFeedback').innerHTML = `<div class="rounded-xl p-4 ${correct ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300' : 'bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300'}"><div class="font-bold">${correct ? 'Верно' : 'Неправильно'}</div><div class="text-sm mt-1">${correct ? 'Хорошая работа.' : 'Правильный ответ: ' + escapeHTML(testQuestion.word.back)}</div>${testQuestion.word.example ? `<p class="text-sm mt-2">${escapeHTML(testQuestion.word.example)}</p>${testQuestion.word.exampleTranslation ? `<p class="text-xs mt-1 opacity-75">${escapeHTML(testQuestion.word.exampleTranslation)}</p>` : ''}` : ''}</div><button onclick="currentIndex++;nextTestQuestion()" class="w-full mt-3 rounded-xl bg-slate-900 dark:bg-indigo-600 text-white py-3 font-semibold">Далее</button>`;
+}
+function checkWrite() {
+  const input = document.getElementById('writeInput');
+  const answer = input.value.trim().toLowerCase().replace(/\s+/g,' ');
+  if (!answer) { input.focus(); return; }
+  const correct = answer === writeQuestion.front.toLowerCase().trim().replace(/\s+/g,' ');
+  writeTotal++; if (correct) writeScore++;
+  reviewWord(writeQuestion, correct ? 2 : 0);
+  input.disabled = true; document.querySelector('#writeForm button').disabled = true;
+  document.getElementById('writeFeedback').innerHTML = `<div class="rounded-xl p-4 ${correct ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300' : 'bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300'}"><div class="font-bold">${correct ? 'Верно' : 'Есть ошибка'}</div><div class="text-sm mt-1">${correct ? 'Отлично!' : 'Правильное написание: ' + escapeHTML(writeQuestion.front)}</div>${writeQuestion.example ? `<p class="text-sm mt-2">${escapeHTML(writeQuestion.example)}</p>${writeQuestion.exampleTranslation ? `<p class="text-xs mt-1 opacity-75">${escapeHTML(writeQuestion.exampleTranslation)}</p>` : ''}` : ''}</div><button onclick="currentIndex++;nextWriteQuestion()" class="w-full mt-3 rounded-xl bg-slate-900 dark:bg-indigo-600 text-white py-3 font-semibold">Следующее слово</button>`;
+}
+function addImportedSet(source) {
+  if (!source || !Array.isArray(source.words)) throw new Error('Неверный набор');
+  const words = source.words.map(word => {
+    const front = String(word.front ?? word.term ?? word.word ?? '').trim();
+    const back = String(word.back ?? word.definition ?? word.translation ?? '').trim();
+    if (!front || !back) return null;
+    return {id:makeId(),front,back,example:String(word.example || ''),exampleTranslation:String(word.exampleTranslation || word.example_translation || '')};
+  }).filter(Boolean);
+  data.sets.push({id:makeId(),name:String(source.name || source.title || 'Импортированный набор'),description:String(source.description || ''),words,learned:[]});
+}
+
+initializeTheme();
+renderHome();
+
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(err => console.warn('PWA registration failed', err)));
+}
+
+window.addEventListener('beforeunload', () => {
+  if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+});
+</script>
+</body>
+</html>
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#121212">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<meta name="description" content="Приложение для изучения английского языка с карточками, тестами и тренировкой письма.">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>Lingua — Изучай английский</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif']
+      },
+      colors: {
+        brand: {
+          50: '#eef2ff',
+          100: '#e0e7ff',
+          500: '#6366f1',
+          600: '#4f46e5',
+          700: '#4338ca'
+        }
+      }
+    }
+  }
+};
+</script>
+<style>
+* { -webkit-tap-highlight-color: transparent; }
+body { font-family: Inter, system-ui, sans-serif; }
+button, input, textarea { font: inherit; }
+button { touch-action: manipulation; }
+.safe-bottom { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+.card-scene { perspective: 1200px; }
+.flashcard {
+  position: relative;
+  width: 100%;
+  min-height: 290px;
+  transform-style: preserve-3d;
+  transition: transform .55s cubic-bezier(.2,.7,.2,1);
+  cursor: pointer;
+}
+.flashcard.flipped { transform: rotateY(180deg); }
+.card-face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  border-radius: 1.5rem;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.card-back { transform: rotateY(180deg); }
+.progress-fill { transition: width .3s ease; }
+.modal-backdrop { animation: fadeIn .18s ease; }
+.modal-panel { animation: slideUp .22s ease; }
+@keyframes fadeIn { from {opacity:0} to {opacity:1} }
+@keyframes slideUp { from {transform:translateY(18px);opacity:0} to {transform:translateY(0);opacity:1} }
+.option-btn { transition: background .15s, border-color .15s, transform .15s; }
+.option-btn:active { transform: scale(.98); }
+input:focus, textarea:focus { outline: none; }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-thumb { background: #a1a1aa; border-radius: 10px; }
+body { min-height: 100dvh; }
+</style>
+
+<style>
+/* Lingua 2.0 — minimal interface */
+:root { color-scheme: light; }
+body { background:#f8fafc !important; letter-spacing:-.01em; }
+.dark body { background:#0b1020 !important; }
+header { background:rgba(248,250,252,.92) !important; }
+.dark header { background:rgba(11,16,32,.92) !important; }
+#main { max-width:900px; }
+#main .rounded-3xl.bg-gradient-to-br { border-radius:22px !important; }
+#main article, #main .bg-white.dark\\:bg-slate-900 {
+  box-shadow:none !important;
+}
+#main .rounded-2xl, #main .rounded-xl { border-radius:14px; }
+button { transition:background .16s ease, border-color .16s ease, transform .16s ease; }
+button:focus-visible, input:focus-visible, textarea:focus-visible {
+  outline:3px solid rgba(99,102,241,.28); outline-offset:2px;
+}
+.card-face { border-radius:20px !important; }
+.flashcard { min-height:310px; }
+@media (max-width:640px) {
+  #main { padding-top:20px; }
+  .flashcard { min-height:280px; }
+}
+</style>
+
+</head>
+<body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 transition-colors">
+
+<div id="app" class="min-h-screen flex flex-col">
+  <header class="sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg border-b border-slate-200 dark:border-slate-800">
+    <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+      <button onclick="goHome()" class="flex items-center gap-2">
+        <span class="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-xl font-black">L</span>
+        <span class="text-xl font-bold tracking-tight">Lingua<span class="text-indigo-600">.</span></span>
+      </button>
+      <div class="flex items-center gap-2">
+        <button onclick="toggleTheme()" id="themeBtn" aria-label="Переключить тему" class="w-10 h-10 rounded-xl flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-lg">🌙</button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main" class="flex-1 w-full max-w-5xl mx-auto px-4 py-6 md:py-10"></main>
+
+  <footer class="text-center text-xs text-slate-400 py-5 safe-bottom">
+    Lingua · Твои слова, твой прогресс
+  </footer>
+</div>
+
+<div id="modalRoot"></div>
+<input type="file" id="jsonFile" accept=".json,application/json" class="hidden">
+
+<script>
+'use strict';
+
+const STORAGE_KEY = 'lingua_app_data_v1';
+const THEME_KEY = 'lingua_theme_v1';
+
+const makeId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+
+const demoSet = {
+  id: 'demo-english-a2',
+  name: 'Английский — базовые слова',
+  description: 'Первые пять слов для повседневного общения.',
+  words: [
+    { id: makeId(), front: 'Achieve', back: 'Достигать', example: 'I want to achieve my goals.', exampleTranslation: 'Я хочу достичь своих целей.' },
+    { id: makeId(), front: 'Although', back: 'Хотя', example: 'Although it was raining, we went out.', exampleTranslation: 'Хотя шёл дождь, мы вышли на улицу.' },
+    { id: makeId(), front: 'Improve', back: 'Улучшать', example: 'I want to improve my English.', exampleTranslation: 'Я хочу улучшить свой английский.' },
+    { id: makeId(), front: 'Require', back: 'Требовать', example: 'This job requires experience.', exampleTranslation: 'Эта работа требует опыта.' },
+    { id: makeId(), front: 'Environment', back: 'Окружающая среда', example: 'We should protect the environment.', exampleTranslation: 'Мы должны защищать окружающую среду.' }
+  ],
+  learned: []
+};
+
+let data = loadData();
+let selectedSetId = null;
+let currentMode = 'cards';
+let studyWords = [];
+let currentIndex = 0;
+let isFlipped = false;
+let testQuestion = null;
+let testScore = 0;
+let testTotal = 0;
+let writeQuestion = null;
+let writeScore = 0;
+let writeTotal = 0;
+let swipeStartX = null;
+let swipeStartY = null;
+
+function loadData() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed.sets)) { parsed.sets.forEach(set => (set.words || []).forEach(word => { if (!Number.isFinite(word.intervalDays)) word.intervalDays = 0; if (!Number.isFinite(word.repetitions)) word.repetitions = 0; if (!Number.isFinite(word.lapses)) word.lapses = 0; if (!Number.isFinite(word.mistakeCount)) word.mistakeCount = 0; if (!Number.isFinite(word.easeFactor)) word.easeFactor = 2.5; if (!Number.isFinite(word.dueAt)) word.dueAt = 0; })); return parsed; }
+    }
+  } catch (error) {
+    console.warn('Не удалось прочитать сохранённые данные.', error);
+  }
+  return { sets: [demoSet] };
+}
+
+function saveData() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch (error) {
+    alert('Не удалось сохранить данные. Возможно, в браузере закончилось место.');
+  }
+}
+
+function escapeHTML(value) {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  })[char]);
+}
+
+function getSet(id = selectedSetId) {
+  return data.sets.find(set => set.id === id);
+}
+
+function getProgress(set) {
+  const total = set.words.length;
+  const learned = set.words.filter(word => (set.learned || []).includes(word.id)).length;
+  return {
+    total,
+    learned,
+    percent: total ? Math.round(learned / total * 100) : 0
+  };
+}
+
+function goHome() {
+  selectedSetId = null;
+  renderHome();
+}
+
+function renderHome() {
+  const main = document.getElementById('main');
+  const totalWords = data.sets.reduce((sum, set) => sum + set.words.length, 0);
+  const totalLearned = data.sets.reduce((sum, set) => sum + (set.learned || []).filter(id => set.words.some(word => word.id === id)).length, 0);
+
+  main.innerHTML = `
+    <section class="mb-8">
+      <div class="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 md:p-8 text-slate-900 dark:text-slate-100 overflow-hidden relative">
+        <div class="relative z-10 max-w-xl">
+          <div class="text-indigo-600 dark:text-indigo-400 text-sm font-semibold mb-2">ТВОЙ ЛИЧНЫЙ ТРЕНАЖЁР</div>
+          <h1 class="text-3xl md:text-4xl font-bold leading-tight mb-3">Изучай язык<br>в своем темпе.</h1>
+          <p class="text-slate-600 dark:text-slate-300 text-sm md:text-base mb-5">Запоминай слова, проходи тесты и отслеживай свой прогресс.</p>
+          <button onclick="openCreateSet()" class="bg-indigo-600 text-white font-bold rounded-xl px-5 py-3 hover:bg-indigo-700 transition">+ Создать набор</button>
+        </div>
+        <div class="absolute -right-8 -bottom-12 text-[180px] text-indigo-600 dark:text-indigo-400 opacity-10 select-none">A</div>
+      </div>
+    </section>
+
+    <section class="grid grid-cols-2 gap-3 mb-8">
+      <div class="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4">
+        <div class="text-2xl font-bold">${totalWords}</div>
+        <div class="text-sm text-slate-500 mt-1">Всего слов</div>
+      </div>
+      <div class="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4">
+        <div class="text-2xl font-bold text-emerald-500">${totalLearned}</div>
+        <div class="text-sm text-slate-500 mt-1">Выучено слов</div>
+      </div>
+    </section>
+
+    <section>
+      <div class="flex items-center justify-between gap-3 mb-4">
+        <div>
+          <h2 class="text-xl font-bold">Мои наборы</h2>
+          <p class="text-sm text-slate-500 mt-1">${data.sets.length} наборов карточек</p>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="importJSON()" class="text-sm font-semibold px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800">Импорт</button>
+          <button onclick="exportJSON()" class="text-sm font-semibold px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800">Экспорт</button>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        ${data.sets.length ? data.sets.map(set => {
+          const p = getProgress(set);
+          return `
+            <article class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm">
+              <div class="flex items-start justify-between gap-3">
+                <button class="text-left flex-1 min-w-0" onclick="openSet('${set.id}')">
+                  <h3 class="font-bold text-lg truncate">${escapeHTML(set.name)}</h3>
+                  <p class="text-sm text-slate-500 mt-1 line-clamp-2">${escapeHTML(set.description || 'Без описания')}</p>
+                </button>
+                <button onclick="openSetMenu('${set.id}')" class="w-9 h-9 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-xl flex-shrink-0" aria-label="Меню набора">⋯</button>
+              </div>
+              <div class="flex justify-between text-xs text-slate-500 mt-5 mb-2">
+                <span>${set.words.length} слов</span>
+                <span>${p.learned} / ${p.total} выучено</span>
+              </div>
+              <div class="h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                <div class="h-full rounded-full bg-indigo-500 progress-fill" style="width:${p.percent}%"></div>
+              </div>
+              <button onclick="openSet('${set.id}')" class="mt-4 w-full py-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 font-semibold text-sm hover:bg-indigo-100 dark:hover:bg-indigo-900 transition">Открыть набор →</button>
+            </article>`;
+        }).join('') : `
+          <div class="col-span-full text-center py-12 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700">
+            <div class="text-4xl mb-3">📚</div>
+            <p class="font-semibold">Пока нет наборов</p>
+            <p class="text-sm text-slate-500 mt-1">Создай свой первый набор слов.</p>
+            <button onclick="openCreateSet()" class="mt-4 bg-indigo-600 text-white rounded-xl px-5 py-3 font-semibold">Создать набор</button>
+          </div>`}
+      </div>
+    </section>
+  `;
+}
+
+function openSet(id) {
+  selectedSetId = id;
+  renderSet();
+}
+
+function renderSet() {
+  const set = getSet();
+  if (!set) return goHome();
+  const p = getProgress(set);
+  const main = document.getElementById('main');
+
+  main.innerHTML = `
+    <div class="mb-5">
+      <button onclick="goHome()" class="text-sm text-slate-500 hover:text-indigo-600 mb-4">← Все наборы</button>
+      <div class="flex justify-between items-start gap-3">
+        <div class="min-w-0">
+          <h1 class="text-2xl md:text-3xl font-bold break-words">${escapeHTML(set.name)}</h1>
+          <p class="text-sm text-slate-500 mt-2">${escapeHTML(set.description || 'Без описания')}</p>
+        </div>
+        <button onclick="openSetMenu('${set.id}')" class="w-10 h-10 flex-shrink-0 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xl">⋯</button>
+      </div>
+    </div>
+
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 mb-6">
+      <div class="flex justify-between items-center mb-2">
+        <span class="text-sm font-semibold">Твой прогресс</span>
+        <span class="text-sm font-bold text-indigo-600">${p.percent}%</span>
+      </div>
+      <div class="h-2.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+        <div class="h-full bg-indigo-500 rounded-full progress-fill" style="width:${p.percent}%"></div>
+      </div>
+      <p class="text-xs text-slate-500 mt-2">Выучено ${p.learned} из ${p.total} слов</p>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
+      <button onclick="startStudy('cards')" class="rounded-2xl bg-indigo-600 text-white p-5 text-left hover:bg-indigo-700 transition">
+        <div class="text-2xl mb-3">🃏</div>
+        <div class="font-bold">Карточки</div>
+        <div class="text-indigo-200 text-xs mt-1">Запоминай слова</div>
+      </button>
+      <button onclick="startStudy('test')" class="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 text-left hover:border-indigo-400 transition">
+        <div class="text-2xl mb-3">🎯</div>
+        <div class="font-bold">Тест</div>
+        <div class="text-slate-500 text-xs mt-1">Выбирай перевод</div>
+      </button>
+      <button onclick="startStudy('write')" class="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 text-left hover:border-indigo-400 transition">
+        <div class="text-2xl mb-3">✍️</div>
+        <div class="font-bold">Письмо</div>
+        <div class="text-slate-500 text-xs mt-1">Вводи слово сам</div>
+      </button>
+    </div>
+
+    <section>
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-lg font-bold">Слова в наборе</h2>
+        <button onclick="openWordEditor()" class="text-sm text-indigo-600 dark:text-indigo-400 font-semibold">+ Добавить</button>
+      </div>
+      <div class="flex gap-2 flex-wrap mb-4">
+        <button onclick="openBulkImport()" class="text-xs font-semibold px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800">Массовый импорт</button>
+        <button onclick="exportSet('${set.id}')" class="text-xs font-semibold px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800">Экспорт набора</button>
+      </div>
+      <div class="space-y-2">
+        ${set.words.length ? set.words.map(word => `
+          <div class="flex items-center gap-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3">
+            <div class="w-9 h-9 flex-shrink-0 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 flex items-center justify-center font-bold">A</div>
+            <div class="flex-1 min-w-0">
+              <div class="font-semibold truncate">${escapeHTML(word.front)}</div>
+              <div class="text-sm text-slate-500 truncate">${escapeHTML(word.back)}</div>
+            </div>
+            ${set.learned?.includes(word.id) ? '<span class="text-emerald-500 text-xs">✓</span>' : ''}
+            <button onclick="speak('${escapeJS(word.front)}')" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Озвучить">🔊</button>
+            <button onclick="editWord('${word.id}')" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Изменить">✏️</button>
+            <button onclick="deleteWord('${word.id}')" class="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-red-500" aria-label="Удалить">×</button>
+          </div>`).join('') : '<p class="text-sm text-slate-500 text-center py-8">В этом наборе пока нет слов.</p>'}
+      </div>
+    </section>
+  `;
+}
+
+function escapeJS(value) {
+  return String(value ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/[\r\n]/g, ' ');
+}
+
+function openCreateSet() {
+  showModal('Создать набор', `
+    <form id="setForm" class="space-y-4">
+      <div>
+        <label class="block text-sm font-semibold mb-2">Название</label>
+        <input id="setName" required maxlength="80" placeholder="Например, Английский A2" class="w-full rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-3">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold mb-2">Описание</label>
+        <textarea id="setDescription" rows="2" maxlength="250" placeholder="Краткое описание набора" class="w-full rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-3 resize-none"></textarea>
+      </div>
+      <button class="w-full rounded-xl bg-indigo-600 text-white py-3 font-bold">Создать</button>
+    </form>
+  `);
+  document.getElementById('setForm').onsubmit = event => {
+    event.preventDefault();
+    const name = document.getElementById('setName').value.trim();
+    if (!name) return;
+    data.sets.push({
+      id: makeId(),
+      name,
+      description: document.getElementById('setDescription').value.trim(),
+      words: [],
+      learned: []
+    });
+    saveData();
+    closeModal();
+    renderHome();
+  };
+}
+
+function editSet(id) {
+  const set = getSet(id);
+  if (!set) return;
+  showModal('Редактировать набор', `
+    <form id="editSetForm" class="space-y-4">
+      <div>
+        <label class="block text-sm font-semibold mb-2">Название</label>
+        <input id="editSetName" required maxlength="80" value="${escapeHTML(set.name)}" class="w-full rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-3">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold mb-2">Описание</label>
+        <textarea id="editSetDescription" rows="3" maxlength="250" class="w-full rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-3 resize-none">${escapeHTML(set.description || '')}</textarea>
+      </div>
+      <button class="w-full rounded-xl bg-indigo-600 text-white py-3 font-bold">Сохранить изменения</button>
+    </form>
+  `);
+  document.getElementById('editSetForm').onsubmit = event => {
+    event.preventDefault();
+    set.name = document.getElementById('editSetName').value.trim();
+    set.description = document.getElementById('editSetDescription').value.trim();
+    saveData();
+    closeModal();
+    renderSet();
+  };
+}
+
+function openSetMenu(id) {
+  const set = getSet(id);
+  if (!set) return;
+  showModal('Управление набором', `
+    <div class="space-y-2">
+      <button onclick="closeModal();editSet('${id}')" class="w-full text-left p-4 rounded-xl bg-slate-100 dark:bg-slate-800 font-semibold">✏️ Редактировать набор</button>
+      <button onclick="closeModal();openBulkImport('${id}')" class="w-full text-left p-4 rounded-xl bg-slate-100 dark:bg-slate-800 font-semibold">📥 Импортировать слова</button>
+      <button onclick="closeModal();exportSet('${id}')" class="w-full text-left p-4 rounded-xl bg-slate-100 dark:bg-slate-800 font-semibold">📤 Экспортировать набор</button>
+      <button onclick="deleteSet('${id}')" class="w-full text-left p-4 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-600 font-semibold">🗑️ Удалить набор</button>
+    </div>
+  `);
+}
+
+function deleteSet(id) {
+  if (!confirm('Удалить этот набор вместе со всеми его словами?')) return;
+  data.sets = data.sets.filter(set => set.id !== id);
+  saveData();
+  selectedSetId = null;
+  closeModal();
+  renderHome();
+}
+
+function openWordEditor(wordId = null) {
+  const set = getSet();
+  if (!set) return;
+  const word = wordId ? set.words.find(item => item.id === wordId) : null;
+  showModal(word ? 'Редактировать слово' : 'Новое слово', `
+    <form id="wordForm" class="space-y-4">
+      <div>
+        <label class="block text-sm font-semibold mb-2">Английское слово</label>
+        <input id="wordFront" required maxlength="120" value="${escapeHTML(word?.front || '')}" placeholder="Apple" class="w-full rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-3">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold mb-2">Перевод</label>
+        <input id="wordBack" required maxlength="180" value="${escapeHTML(word?.back || '')}" placeholder="Яблоко" class="w-full rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-3">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold mb-2">Пример предложения (необязательно)</label>
+        <textarea id="wordExample" rows="2" maxlength="300" placeholder="I eat an apple every day." class="w-full rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-3 resize-none">${escapeHTML(word?.example || '')}</textarea>
+      </div>
+      <div>
+        <label class="block text-sm font-semibold mb-2">Перевод примера (необязательно)</label>
+        <textarea id="wordExampleTranslation" rows="2" maxlength="300" placeholder="Я ем яблоко каждый день." class="w-full rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-3 resize-none">${escapeHTML(word?.exampleTranslation || '')}</textarea>
+      </div>
+      <button class="w-full rounded-xl bg-indigo-600 text-white py-3 font-bold">Сохранить слово</button>
+    </form>
+  `);
+  document.getElementById('wordForm').onsubmit = event => {
+    event.preventDefault();
+    const front = document.getElementById('wordFront').value.trim();
+    const back = document.getElementById('wordBack').value.trim();
+    const example = document.getElementById('wordExample').value.trim();
+    const exampleTranslation = document.getElementById('wordExampleTranslation').value.trim();
+    if (!front || !back) return;
+    if (word) {
+      word.front = front;
+      word.back = back;
+      word.example = example;
+      word.exampleTranslation = exampleTranslation;
+    } else {
+      set.words.push({ id: makeId(), front, back, example, exampleTranslation });
+    }
+    saveData();
+    closeModal();
+    renderSet();
+  };
+}
+
+function editWord(id) {
+  openWordEditor(id);
+}
+
+function deleteWord(id) {
+  const set = getSet();
+  if (!set || !confirm('Удалить это слово?')) return;
+  set.words = set.words.filter(word => word.id !== id);
+  set.learned = (set.learned || []).filter(wordId => wordId !== id);
+  saveData();
+  renderSet();
+}
+
+function openBulkImport(id = selectedSetId) {
+  const set = getSet(id);
+  if (!set) return;
+  showModal('Импорт карточек', `
+    <div class="space-y-3">
+      <div class="rounded-xl bg-indigo-50 dark:bg-indigo-950/30 p-3 text-sm">
+        <div class="font-semibold text-indigo-700 dark:text-indigo-300 mb-1">Импорт из Quizlet</div>
+        <ol class="list-decimal pl-5 space-y-1 text-slate-600 dark:text-slate-300">
+          <li>В Quizlet открой набор → меню <b>⋯</b> → <b>Экспорт</b>.</li>
+          <li>Выбери между термином и определением <b>табуляцию</b>, а между карточками — <b>новую строку</b>.</li>
+          <li>Нажми «Копировать» и вставь результат ниже.</li>
+        </ol>
+      </div>
+      <p class="text-xs text-slate-500">Также можно выбрать сохранённый файл TXT, TSV или CSV. Формат распознаётся автоматически.</p>
+      <input id="bulkFile" type="file" accept=".txt,.tsv,.csv,text/plain,text/tab-separated-values,text/csv"
+        class="block w-full text-sm text-slate-500 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 dark:file:bg-slate-800 file:px-3 file:py-2 file:font-semibold">
+      <form id="bulkForm" class="space-y-3">
+        <textarea id="bulkText" required rows="9" placeholder="Вставь экспорт Quizlet сюда…&#10;abandon[TAB]покидать&#10;achieve[TAB]достигать"
+          class="w-full rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-3 resize-y text-sm"></textarea>
+        <div id="bulkImportStatus" class="text-xs text-slate-500">Поддерживаются табуляция Quizlet, CSV с точкой с запятой и старый формат «слово - перевод».</div>
+        <button class="w-full rounded-xl bg-indigo-600 text-white py-3 font-bold">Импортировать карточки</button>
+      </form>
+    </div>
+  `);
+
+  const textArea = document.getElementById('bulkText');
+  const fileInput = document.getElementById('bulkFile');
+  const status = document.getElementById('bulkImportStatus');
+
+  fileInput.onchange = async () => {
+    const file = fileInput.files && fileInput.files[0];
+    if (!file) return;
+    textArea.value = (await file.text()).replace(/^\uFEFF/, '');
+    status.textContent = 'Файл загружен: ' + file.name;
+  };
+
+  document.getElementById('bulkForm').onsubmit = event => {
+    event.preventDefault();
+    const raw = textArea.value.replace(/^\uFEFF/, '').replace(/\r/g, '');
+    const lines = raw.split('\n').map(line => line.trim()).filter(Boolean);
+    let added = 0;
+    let skipped = 0;
+
+    // Quizlet export defaults to one card per line and a TAB between term and definition.
+    // Also accept semicolon-separated CSV and the app's previous "term - definition" format.
+    const sample = lines.slice(0, 10);
+    const tabCount = sample.reduce((n, line) => n + (line.match(/\t/g) || []).length, 0);
+    const semicolonCount = sample.reduce((n, line) => n + (line.match(/;/g) || []).length, 0);
+    const delimiter = tabCount > 0 ? '\t' : (semicolonCount > 0 ? ';' : null);
+
+    function splitQuoted(line, sep) {
+      const result = [];
+      let field = '';
+      let quoted = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '"') {
+          if (quoted && line[i + 1] === '"') { field += '"'; i++; }
+          else quoted = !quoted;
+        } else if (ch === sep && !quoted) {
+          result.push(field.trim());
+          field = '';
+        } else {
+          field += ch;
+        }
+      }
+      result.push(field.trim());
+      return result;
+    }
+
+    lines.forEach(line => {
+      let front = '';
+      let back = '';
+      if (delimiter) {
+        const fields = splitQuoted(line, delimiter);
+        if (fields.length >= 2) {
+          front = fields[0];
+          back = fields.slice(1).join(delimiter).trim();
+        }
+      } else {
+        const match = line.match(/^(.+?)\s+(?:-|—|–)\s+(.+)$/);
+        if (match) { front = match[1].trim(); back = match[2].trim(); }
+        else {
+          const fields = line.split('|').map(value => value.trim());
+          if (fields.length >= 2) { front = fields[0]; back = fields[1]; }
+        }
+      }
+
+      // Ignore common header rows from manually prepared spreadsheets.
+      if (/^(term|word|термин|слово)$/i.test(front) && /^(definition|meaning|translation|определение|перевод)$/i.test(back)) {
+        skipped++;
+        return;
+      }
+      if (!front || !back) { skipped++; return; }
+
+      set.words.push({
+        id: makeId(),
+        front,
+        back,
+        example: '',
+        exampleTranslation: ''
+      });
+      added++;
+    });
+
+    if (!added) {
+      alert('Не удалось распознать карточки. В Quizlet выбери табуляцию между термином и определением и новую строку между карточками.');
+      return;
+    }
+    saveData();
+    closeModal();
+    if (selectedSetId === id) renderSet();
+    alert('Импортировано карточек: ' + added + (skipped ? '\\nПропущено строк: ' + skipped : ''));
+  };
+}
+
+function exportJSON() {
+  downloadJSON(data, 'lingua-all-sets.json');
+}
+
+function exportSet(id) {
+  const set = getSet(id);
+  if (!set) return;
+  downloadJSON(set, 'lingua-' + safeFilename(set.name) + '.json');
+}
+
+function safeFilename(value) {
+  return String(value).toLowerCase().replace(/[^a-z0-9а-яё_-]+/gi, '-').replace(/^-|-$/g, '') || 'set';
+}
+
+function downloadJSON(object, filename) {
+  const blob = new Blob([JSON.stringify(object, null, 2)], { type: 'application/json;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function importJSON() {
+  const fileInput = document.getElementById('jsonFile');
+  fileInput.value = '';
+  fileInput.onchange = async () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+    try {
+      const parsed = JSON.parse(await file.text());
+      if (Array.isArray(parsed.sets)) {
+        parsed.sets.forEach(set => addImportedSet(set));
+      } else if (parsed && Array.isArray(parsed.words)) {
+        addImportedSet(parsed);
+      } else {
+        throw new Error('Неверный формат');
+      }
+      saveData();
+      renderHome();
+      alert('Импорт завершён.');
+    } catch (error) {
+      alert('Не удалось импортировать файл. Проверь его JSON-структуру.');
+    }
+  };
+  fileInput.click();
+}
+
+function addImportedSet(source) {
+  if (!source || !Array.isArray(source.words)) throw new Error('Неверный набор');
+  const words = source.words.map(word => {
+    const front = String(word.front ?? word.term ?? word.word ?? '').trim();
+    const back = String(word.back ?? word.definition ?? word.translation ?? '').trim();
+    if (!front || !back) return null;
+    return {
+      id: makeId(),
+      front,
+      back,
+      example: String(word.example || ''),
+      exampleTranslation: String(word.exampleTranslation || word.example_translation || '')
+    };
+  }).filter(Boolean);
+  data.sets.push({
+    id: makeId(),
+    name: String(source.name || source.title || 'Импортированный набор'),
+    description: String(source.description || ''),
+    words,
+    learned: []
+  });
+}
+
+function startStudy(mode) {
+  const set = getSet();
+  if (!set || !set.words.length) {
+    alert('Сначала добавь слова в набор.');
+    return;
+  }
+  currentMode = mode;
+  studyWords = [...set.words].sort(() => Math.random() - 0.5);
+  currentIndex = 0;
+  isFlipped = false;
+  testScore = 0;
+  testTotal = 0;
+  writeScore = 0;
+  writeTotal = 0;
+  if (mode === 'cards') renderCards();
+  if (mode === 'test') nextTestQuestion();
+  if (mode === 'write') nextWriteQuestion();
+}
+
+function endStudy() {
+  renderSet();
+}
+
+function speak(text) {
+  if (!('speechSynthesis' in window)) {
+    alert('Озвучка не поддерживается этим браузером.');
+    return;
+  }
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = 'en-US';
+  utterance.rate = 0.85;
+  window.speechSynthesis.speak(utterance);
+}
+
+function renderCards() {
+  const set = getSet();
+  if (!set) return goHome();
+  const word = studyWords[currentIndex];
+  const learned = set.learned || [];
+  const known = learned.includes(word.id);
+
+  document.getElementById('main').innerHTML = `
+    <div class="max-w-xl mx-auto">
+      <div class="flex items-center justify-between mb-6">
+        <button onclick="endStudy()" class="text-sm text-slate-500 hover:text-indigo-600">← Выйти</button>
+        <span class="text-sm font-semibold text-slate-500">Карточки</span>
+        <span class="text-sm font-bold">${currentIndex + 1} / ${studyWords.length}</span>
+      </div>
+      <div class="h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden mb-8">
+        <div class="h-full rounded-full bg-indigo-500 progress-fill" style="width:${(currentIndex + 1) / studyWords.length * 100}%"></div>
+      </div>
+      <div class="text-center mb-4">
+        <p class="text-sm text-slate-500">Нажми на карточку, чтобы увидеть перевод</p>
+      </div>
+      <div class="card-scene mb-6" id="cardScene">
+        <div class="flashcard ${isFlipped ? 'flipped' : ''}" id="flashcard" onclick="flipCard()">
+          <div class="card-face bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm">
+            <span class="absolute top-5 left-5 text-xs font-semibold uppercase tracking-wider text-slate-400">English</span>
+            <div class="text-3xl md:text-4xl font-bold text-center break-words">${escapeHTML(word.front)}</div>
+            <button onclick="event.stopPropagation();speak('${escapeJS(word.front)}')" class="mt-7 rounded-full w-12 h-12 bg-indigo-50 dark:bg-indigo-950 text-indigo-600 text-xl">🔊</button>
+            <span class="absolute bottom-5 text-xs text-slate-400">Нажми, чтобы перевернуть</span>
+          </div>
+          <div class="card-face card-back bg-indigo-600 text-white shadow-sm">
+            <span class="absolute top-5 left-5 text-xs font-semibold uppercase tracking-wider text-indigo-200">Перевод</span>
+            <div class="text-3xl md:text-4xl font-bold text-center break-words">${escapeHTML(word.back)}</div>
+            ${word.example ? `<p class="text-sm text-indigo-100 text-center mt-5">${escapeHTML(word.example)}</p>` : ''}
+            <span class="absolute bottom-5 text-xs text-indigo-200">Нажми, чтобы вернуться</span>
+          </div>
+        </div>
+      </div>
+      <div class="flex justify-center items-center gap-2 mb-6 text-sm text-slate-500">
+        <span>${known ? '✓ Уже отмечено как выученное' : 'Ещё не выучено'}</span>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <button onclick="cardAnswer(false)" class="rounded-xl border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 py-4 font-bold">↻ Повторить</button>
+        <button onclick="cardAnswer(true)" class="rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white py-4 font-bold">✓ Знаю</button>
+      </div>
+      <div class="flex justify-between mt-5">
+        <button onclick="previousCard()" ${currentIndex === 0 ? 'disabled' : ''} class="text-sm text-slate-500 disabled:opacity-30">← Назад</button>
+        <button onclick="nextCard()" class="text-sm text-indigo-600 dark:text-indigo-400 font-semibold">Пропустить →</button>
+      </div>
+    </div>
+  `;
+
+  const scene = document.getElementById('cardScene');
+  scene.addEventListener('touchstart', event => {
+    swipeStartX = event.changedTouches[0].clientX;
+    swipeStartY = event.changedTouches[0].clientY;
+  }, { passive: true });
+  scene.addEventListener('touchend', event => {
+    if (swipeStartX === null) return;
+    const dx = event.changedTouches[0].clientX - swipeStartX;
+    const dy = event.changedTouches[0].clientY - swipeStartY;
+    if (Math.abs(dx) > 65 && Math.abs(dx) > Math.abs(dy)) {
+      if (dx > 0) cardAnswer(true);
+      else cardAnswer(false);
+    }
+    swipeStartX = null;
+    swipeStartY = null;
+  }, { passive: true });
+}
+
+function flipCard() {
+  isFlipped = !isFlipped;
+  const card = document.getElementById('flashcard');
+  if (card) card.classList.toggle('flipped', isFlipped);
+}
+
+function cardAnswer(known) {
+  const set = getSet();
+  const word = studyWords[currentIndex];
+  if (!set) return;
+  set.learned = set.learned || [];
+  if (known && !set.learned.includes(word.id)) set.learned.push(word.id);
+  if (!known) set.learned = set.learned.filter(id => id !== word.id);
+  saveData();
+  nextCard();
+}
+
+function nextCard() {
+  if (currentIndex < studyWords.length - 1) {
+    currentIndex++;
+    isFlipped = false;
+    renderCards();
+  } else {
+    showStudyComplete('Карточки завершены', 'Ты просмотрел все карточки этого раунда.');
+  }
+}
+
+function previousCard() {
+  if (currentIndex > 0) {
+    currentIndex--;
+    isFlipped = false;
+    renderCards();
+  }
+}
+
+function showStudyComplete(title, message) {
+  const set = getSet();
+  const p = set ? getProgress(set) : { learned: 0, total: 0, percent: 0 };
+  document.getElementById('main').innerHTML = `
+    <div class="max-w-md mx-auto text-center py-12">
+      <div class="text-6xl mb-5">🎉</div>
+      <h1 class="text-3xl font-bold mb-3">${escapeHTML(title)}</h1>
+      <p class="text-slate-500 mb-8">${escapeHTML(message)}</p>
+      <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 mb-6">
+        <div class="text-3xl font-bold text-indigo-600">${p.percent}%</div>
+        <div class="text-sm text-slate-500 mt-1">Общий прогресс набора</div>
+        <div class="text-sm mt-4">${p.learned} из ${p.total} слов выучено</div>
+      </div>
+      <button onclick="renderSet()" class="w-full rounded-xl bg-indigo-600 text-white py-3 font-bold">Вернуться к набору</button>
+    </div>
+  `;
+}
+
+function nextTestQuestion() {
+  if (currentIndex >= studyWords.length) {
+    showQuizResult('Тест завершён', testScore, testTotal);
+    return;
+  }
+  const set = getSet();
+  const word = studyWords[currentIndex];
+  const alternatives = set.words.filter(item => item.id !== word.id).sort(() => Math.random() - .5).slice(0, 3);
+  const options = [...alternatives, word].sort(() => Math.random() - .5);
+  testQuestion = { word, options, answered: false };
+  renderTest();
+}
+
+function renderTest() {
+  const question = testQuestion;
+  if (!question) return;
+  document.getElementById('main').innerHTML = `
+    <div class="max-w-xl mx-auto">
+      <div class="flex items-center justify-between mb-6">
+        <button onclick="endStudy()" class="text-sm text-slate-500">← Выйти</button>
+        <span class="text-sm font-semibold text-slate-500">Тест</span>
+        <span class="text-sm font-bold">${currentIndex + 1} / ${studyWords.length}</span>
+      </div>
+      <div class="h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden mb-8">
+        <div class="h-full bg-indigo-500 rounded-full" style="width:${currentIndex / studyWords.length * 100}%"></div>
+      </div>
+      <div class="text-center mb-8">
+        <p class="text-sm text-slate-500 mb-4">Выбери правильный перевод</p>
+        <h1 class="text-3xl font-bold mb-3">${escapeHTML(question.word.front)}</h1>
+        <button onclick="speak('${escapeJS(question.word.front)}')" class="text-indigo-600 text-sm font-semibold">🔊 Прослушать</button>
+      </div>
+      <div class="space-y-3" id="testOptions">
+        ${question.options.map(option => `
+          <button onclick="answerTest('${option.id}')" data-id="${option.id}" class="option-btn w-full text-left p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-medium">
+            ${escapeHTML(option.back)}
+          </button>
+        `).join('')}
+      </div>
+      <div id="testFeedback" class="mt-5"></div>
+      <div class="text-center mt-5 text-sm text-slate-500">Правильных ответов: ${testScore} / ${testTotal}</div>
+    </div>
+  `;
+}
+
+function answerTest(id) {
+  if (testQuestion.answered) return;
+  testQuestion.answered = true;
+  const correct = id === testQuestion.word.id;
+  testTotal++;
+  if (correct) testScore++;
+  const buttons = document.querySelectorAll('#testOptions button');
+  buttons.forEach(button => {
+    button.disabled = true;
+    const optionId = button.dataset.id;
+    if (optionId === testQuestion.word.id) {
+      button.classList.add('border-emerald-500', 'bg-emerald-50', 'dark:bg-emerald-950/30');
+    } else if (optionId === id) {
+      button.classList.add('border-red-500', 'bg-red-50', 'dark:bg-red-950/30');
+    }
+  });
+  const feedback = document.getElementById('testFeedback');
+  feedback.innerHTML = `
+    <div class="rounded-xl p-4 ${correct ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300' : 'bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300'}">
+      <div class="font-bold">${correct ? '✓ Правильно!' : '✗ Неправильно'}</div>
+      <div class="text-sm mt-1">${correct ? 'Отличная работа.' : 'Правильный ответ: ' + escapeHTML(testQuestion.word.back)}</div>
+    </div>
+    <button onclick="currentIndex++;nextTestQuestion()" class="w-full mt-3 rounded-xl bg-indigo-600 text-white py-3 font-bold">Следующий вопрос →</button>
+  `;
+}
+
+function showQuizResult(title, score, total) {
+  const percent = total ? Math.round(score / total * 100) : 0;
+  document.getElementById('main').innerHTML = `
+    <div class="max-w-md mx-auto text-center py-12">
+      <div class="text-6xl mb-5">${percent >= 80 ? '🏆' : '💪'}</div>
+      <h1 class="text-3xl font-bold mb-3">${title}</h1>
+      <p class="text-slate-500 mb-8">Результаты твоей тренировки</p>
+      <div class="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-7 mb-6">
+        <div class="text-5xl font-black text-indigo-600">${percent}%</div>
+        <div class="text-slate-500 mt-2">Правильных ответов</div>
+        <div class="mt-5 font-bold">${score} из ${total}</div>
+      </div>
+      <button onclick="renderSet()" class="w-full rounded-xl bg-indigo-600 text-white py-3 font-bold">Вернуться к набору</button>
+    </div>
+  `;
+}
+
+function nextWriteQuestion() {
+  if (currentIndex >= studyWords.length) {
+    showQuizResult('Тренировка завершена', writeScore, writeTotal);
+    return;
+  }
+  writeQuestion = studyWords[currentIndex];
+  renderWrite();
+}
+
+function renderWrite() {
+  const word = writeQuestion;
+  document.getElementById('main').innerHTML = `
+    <div class="max-w-xl mx-auto">
+      <div class="flex items-center justify-between mb-6">
+        <button onclick="endStudy()" class="text-sm text-slate-500">← Выйти</button>
+        <span class="text-sm font-semibold text-slate-500">Письмо</span>
+        <span class="text-sm font-bold">${currentIndex + 1} / ${studyWords.length}</span>
+      </div>
+      <div class="h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden mb-8">
+        <div class="h-full bg-indigo-500 rounded-full" style="width:${currentIndex / studyWords.length * 100}%"></div>
+      </div>
+      <div class="text-center mb-8">
+        <p class="text-sm text-slate-500 mb-4">Напиши английское слово по переводу</p>
+        <h1 class="text-3xl font-bold">${escapeHTML(word.back)}</h1>
+      </div>
+      <form id="writeForm" class="space-y-4">
+        <input id="writeInput" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Введи слово на английском..." class="w-full text-center text-xl rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-4">
+        <button class="w-full rounded-xl bg-indigo-600 text-white py-4 font-bold">Проверить ответ</button>
+      </form>
+      <div id="writeFeedback" class="mt-4"></div>
+      <div class="text-center mt-5 text-sm text-slate-500">Правильных ответов: ${writeScore} / ${writeTotal}</div>
+    </div>
+  `;
+  document.getElementById('writeForm').onsubmit = event => {
+    event.preventDefault();
+    checkWrite();
+  };
+  document.getElementById('writeInput').focus();
+}
+
+function checkWrite() {
+  const input = document.getElementById('writeInput');
+  const answer = input.value.trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!answer) {
+    input.focus();
+    return;
+  }
+  const correctAnswer = writeQuestion.front.toLowerCase().trim().replace(/\s+/g, ' ');
+  const correct = answer === correctAnswer;
+  writeTotal++;
+  if (correct) writeScore++;
+  input.disabled = true;
+  document.querySelector('#writeForm button').disabled = true;
+  document.getElementById('writeFeedback').innerHTML = `
+    <div class="rounded-xl p-4 ${correct ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300' : 'bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300'}">
+      <div class="font-bold">${correct ? '✓ Верно!' : '✗ Есть ошибка'}</div>
+      <div class="text-sm mt-1">${correct ? 'Отлично, ты написал правильно.' : 'Правильное написание: ' + escapeHTML(writeQuestion.front)}</div>
+    </div>
+    <button onclick="currentIndex++;nextWriteQuestion()" class="w-full mt-3 rounded-xl bg-indigo-600 text-white py-3 font-bold">Следующее слово →</button>
+  `;
+}
+
+function showModal(title, content) {
+  const root = document.getElementById('modalRoot');
+  root.innerHTML = `
+    <div class="modal-backdrop fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4" onclick="if(event.target===this)closeModal()">
+      <div class="modal-panel w-full sm:max-w-md max-h-[90dvh] overflow-y-auto bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl p-5 sm:p-6 shadow-2xl">
+        <div class="flex items-center justify-between mb-5">
+          <h2 class="text-xl font-bold">${escapeHTML(title)}</h2>
+          <button onclick="closeModal()" class="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 text-xl">×</button>
+        </div>
+        ${content}
+      </div>
+    </div>
+  `;
+}
+
+function closeModal() {
+  document.getElementById('modalRoot').innerHTML = '';
+}
+
+function toggleTheme() {
+  const isDark = document.documentElement.classList.toggle('dark');
+  localStorage.setItem(THEME_KEY, isDark ? 'dark' : 'light');
+  updateThemeButton();
+}
+
+function updateThemeButton() {
+  const button = document.getElementById('themeBtn');
+  if (!button) return;
+  button.textContent = document.documentElement.classList.contains('dark') ? '☀️' : '🌙';
+}
+
+function initializeTheme() {
+  let theme = 'light';
+  try {
+    theme = localStorage.getItem(THEME_KEY) || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  } catch (error) {}
+  document.documentElement.classList.toggle('dark', theme === 'dark');
+  updateThemeButton();
+}
+
+
+/* ---------------- Lingua 2.0: spaced repetition ---------------- */
+const REVIEW_MINUTES_AGAIN = 10;
+function ensureReviewData(word) {
+  if (!Number.isFinite(word.intervalDays)) word.intervalDays = 0;
+  if (!Number.isFinite(word.repetitions)) word.repetitions = 0;
+  if (!Number.isFinite(word.lapses)) word.lapses = 0;
+  if (!Number.isFinite(word.mistakeCount)) word.mistakeCount = 0;
+  if (!Number.isFinite(word.easeFactor)) word.easeFactor = 2.5;
+  if (!Number.isFinite(word.dueAt)) word.dueAt = 0;
+  return word;
+}
+function reviewWord(word, quality) {
+  ensureReviewData(word);
+  const now = Date.now();
+  if (quality <= 0) {
+    word.lapses += 1;
+    word.mistakeCount += 1;
+    word.repetitions = 0;
+    word.intervalDays = 0;
+    word.dueAt = now + REVIEW_MINUTES_AGAIN * 60 * 1000;
+    word.easeFactor = Math.max(1.3, word.easeFactor - 0.2);
+  } else {
+    if (quality === 1) {
+      word.intervalDays = word.repetitions === 0 ? 1 : Math.max(1, Math.round(word.intervalDays * 1.2));
+      word.easeFactor = Math.max(1.3, word.easeFactor - 0.05);
+    } else {
+      word.intervalDays = word.repetitions === 0 ? 3 : word.repetitions === 1 ? 7 : Math.max(1, Math.round(word.intervalDays * word.easeFactor));
+      if (quality === 3) word.easeFactor = Math.min(3.0, word.easeFactor + 0.1);
+    }
+    word.repetitions += 1;
+    word.dueAt = now + word.intervalDays * 24 * 60 * 60 * 1000;
+  }
+  word.lastReviewedAt = now;
+  const set = getSet();
+  if (set) {
+    set.learned = set.learned || [];
+    if (word.repetitions >= 3 && word.intervalDays >= 14) {
+      if (!set.learned.includes(word.id)) set.learned.push(word.id);
+    } else {
+      set.learned = set.learned.filter(id => id !== word.id);
+    }
+  }
+  saveData();
+}
+function dueWords(set) {
+  const now = Date.now();
+  return set.words.filter(word => !ensureReviewData(word).dueAt || word.dueAt <= now);
+}
+function mistakeWords(set) {
+  return set.words.filter(word => {
+    ensureReviewData(word);
+    return word.mistakeCount > 0 || word.lapses > 0;
+  }).sort((a,b) => (b.mistakeCount + b.lapses) - (a.mistakeCount + a.lapses));
+}
+function startStudy(mode) {
+  const set = getSet();
+  if (!set || !set.words.length) { alert('Сначала добавь слова в набор.'); return; }
+  currentMode = mode;
+  if (mode === 'review') studyWords = dueWords(set);
+  else if (mode === 'mistakes') studyWords = mistakeWords(set);
+  else studyWords = [...set.words].sort(() => Math.random() - 0.5);
+  if (!studyWords.length) {
+    alert(mode === 'review' ? 'На сегодня повторений нет. Отличная работа!' : 'Ошибок пока нет. Продолжай заниматься!');
+    return;
+  }
+  currentIndex = 0; isFlipped = false;
+  testScore = 0; testTotal = 0; writeScore = 0; writeTotal = 0;
+  if (mode === 'cards' || mode === 'review' || mode === 'mistakes') renderCards();
+  if (mode === 'test') nextTestQuestion();
+  if (mode === 'write') nextWriteQuestion();
+}
+function renderSet() {
+  const set = getSet();
+  if (!set) return goHome();
+  set.words.forEach(ensureReviewData);
+  const p = getProgress(set);
+  const due = dueWords(set).length;
+  const mistakes = mistakeWords(set).length;
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="mb-7">
+      <button onclick="goHome()" class="text-sm text-slate-500 hover:text-indigo-600 mb-4">← Все наборы</button>
+      <div class="flex justify-between items-start gap-3">
+        <div class="min-w-0">
+          <h1 class="text-2xl md:text-3xl font-bold break-words">${escapeHTML(set.name)}</h1>
+          <p class="text-sm text-slate-500 mt-2">${escapeHTML(set.description || 'Без описания')}</p>
+        </div>
+        <button onclick="openSetMenu('${set.id}')" class="w-10 h-10 flex-shrink-0 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xl">⋯</button>
+      </div>
+    </div>
+    <div class="grid grid-cols-3 gap-2 mb-6">
+      <div class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3"><div class="text-xl font-bold">${set.words.length}</div><div class="text-xs text-slate-500">Всего слов</div></div>
+      <div class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3"><div class="text-xl font-bold text-indigo-600">${due}</div><div class="text-xs text-slate-500">К повторению</div></div>
+      <div class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3"><div class="text-xl font-bold text-rose-500">${mistakes}</div><div class="text-xs text-slate-500">С ошибками</div></div>
+    </div>
+    <div class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 mb-6">
+      <div class="flex justify-between items-center mb-2"><span class="text-sm font-semibold">Выучено</span><span class="text-sm font-bold text-indigo-600">${p.percent}%</span></div>
+      <div class="h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden"><div class="h-full bg-indigo-500 rounded-full" style="width:${p.percent}%"></div></div>
+    </div>
+    <section class="mb-8">
+      <h2 class="text-lg font-bold mb-3">Учиться</h2>
+      <div class="grid grid-cols-2 gap-3">
+        <button onclick="startStudy('review')" class="col-span-2 rounded-xl bg-indigo-50 dark:bg-indigo-600 border border-indigo-200 dark:border-indigo-500 text-slate-900 dark:text-white p-4 text-left transition-colors">
+          <div class="flex justify-between items-center"><span class="font-semibold">Повторить сегодня</span><span class="text-sm opacity-80">${due} слов →</span></div>
+          <p class="text-xs text-indigo-700 dark:text-indigo-100 mt-1">Интервальное повторение</p>
+        </button>
+        <button onclick="startStudy('cards')" class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 text-left"><div class="font-semibold">Карточки</div><div class="text-xs text-slate-500 mt-1">Все слова</div></button>
+        <button onclick="startStudy('mistakes')" class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 text-left"><div class="font-semibold">Мои ошибки</div><div class="text-xs text-slate-500 mt-1">${mistakes} слов</div></button>
+        <button onclick="startStudy('test')" class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 text-left"><div class="font-semibold">Тест</div><div class="text-xs text-slate-500 mt-1">Выбери перевод</div></button>
+        <button onclick="startStudy('write')" class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 text-left"><div class="font-semibold">Письмо</div><div class="text-xs text-slate-500 mt-1">Введи слово</div></button>
+      </div>
+    </section>
+    <section>
+      <div class="flex items-center justify-between mb-3"><h2 class="text-lg font-bold">Слова</h2><button onclick="openWordEditor()" class="text-sm text-indigo-600 dark:text-indigo-400 font-semibold">+ Добавить</button></div>
+      <div class="flex gap-2 flex-wrap mb-4">
+        <button onclick="openBulkImport()" class="text-xs font-semibold px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800">Массовый импорт</button>
+        <button onclick="exportSet('${set.id}')" class="text-xs font-semibold px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800">Экспорт набора</button>
+      </div>
+      <div class="space-y-2">
+        ${set.words.length ? set.words.map(word => {
+          ensureReviewData(word);
+          return `<div class="flex items-center gap-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3">
+            <div class="w-8 h-8 flex-shrink-0 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 flex items-center justify-center text-sm font-bold">A</div>
+            <div class="flex-1 min-w-0"><div class="font-semibold truncate">${escapeHTML(word.front)}</div><div class="text-sm text-slate-500 truncate">${escapeHTML(word.back)}</div>${word.example ? `<div class="text-xs text-slate-400 mt-1 truncate">${escapeHTML(word.example)}</div>` : ''}</div>
+            ${word.mistakeCount ? `<span class="text-xs text-rose-500" title="Ошибок: ${word.mistakeCount}">${word.mistakeCount}×</span>` : ''}
+            <button onclick="speak('${escapeJS(word.front)}')" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Озвучить">⌁</button>
+            <button onclick="editWord('${word.id}')" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Изменить">✎</button>
+            <button onclick="deleteWord('${word.id}')" class="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-red-500" aria-label="Удалить">×</button>
+          </div>`;
+        }).join('') : '<p class="text-sm text-slate-500 text-center py-8">В этом наборе пока нет слов.</p>'}
+      </div>
+    </section>`;
+  saveData();
+}
+function renderCards() {
+  const set = getSet();
+  if (!set) return goHome();
+  const word = studyWords[currentIndex];
+  const label = currentMode === 'review' ? 'Повторение' : currentMode === 'mistakes' ? 'Мои ошибки' : 'Карточки';
+  document.getElementById('main').innerHTML = `
+    <div class="max-w-xl mx-auto">
+      <div class="flex items-center justify-between mb-6">
+        <button onclick="endStudy()" class="text-sm text-slate-500">← Выйти</button>
+        <span class="text-sm font-semibold text-slate-500">${label}</span>
+        <span class="text-sm font-bold">${currentIndex + 1} / ${studyWords.length}</span>
+      </div>
+      <div class="h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden mb-8"><div class="h-full rounded-full bg-indigo-500 progress-fill" style="width:${(currentIndex + 1) / studyWords.length * 100}%"></div></div>
+      <p class="text-center text-sm text-slate-500 mb-4">Вспомни значение и переверни карточку</p>
+      <div class="card-scene mb-6" id="cardScene">
+        <div class="flashcard ${isFlipped ? 'flipped' : ''}" id="flashcard" onclick="flipCard()">
+          <div class="card-face bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+            <span class="absolute top-5 left-5 text-xs uppercase tracking-wider text-slate-400">English</span>
+            <div class="text-3xl md:text-4xl font-bold text-center break-words">${escapeHTML(word.front)}</div>
+            <button onclick="event.stopPropagation();speak('${escapeJS(word.front)}')" class="mt-7 rounded-full w-11 h-11 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-200">⌁</button>
+            <span class="absolute bottom-5 text-xs text-slate-400">Нажми, чтобы увидеть перевод</span>
+          </div>
+          <div class="card-face card-back bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-900 text-slate-900 dark:text-white">
+            <span class="absolute top-5 left-5 text-xs uppercase tracking-wider text-slate-400">Перевод</span>
+            <div class="text-2xl md:text-3xl font-bold text-center break-words">${escapeHTML(word.back)}</div>
+            ${word.example ? `<div class="mt-5 text-center max-w-full"><p class="text-sm font-medium text-indigo-700 dark:text-indigo-300">${escapeHTML(word.example)}</p>${word.exampleTranslation ? `<p class="text-xs text-slate-500 mt-1">${escapeHTML(word.exampleTranslation)}</p>` : ''}<button onclick="event.stopPropagation();speak('${escapeJS(word.example)}')" class="mt-2 text-xs text-slate-500">Прослушать пример</button></div>` : '<p class="text-xs text-slate-400 mt-4">Добавь пример в редакторе слова</p>'}
+            <span class="absolute bottom-5 text-xs text-slate-400">Оцени, насколько легко вспомнил</span>
+          </div>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <button onclick="cardAnswer(false)" class="rounded-xl border border-rose-200 dark:border-rose-900 bg-white dark:bg-slate-900 text-rose-600 py-4 font-semibold">Не вспомнил</button>
+        <button onclick="cardAnswer(true)" class="rounded-xl bg-slate-900 dark:bg-indigo-600 text-white py-4 font-semibold">Вспомнил</button>
+      </div>
+      <div class="flex justify-between mt-5"><button onclick="previousCard()" ${currentIndex === 0 ? 'disabled' : ''} class="text-sm text-slate-500 disabled:opacity-30">← Назад</button><button onclick="nextCard()" class="text-sm text-slate-500">Пропустить →</button></div>
+    </div>`;
+  const scene = document.getElementById('cardScene');
+  scene.addEventListener('touchstart', event => { swipeStartX = event.changedTouches[0].clientX; swipeStartY = event.changedTouches[0].clientY; }, {passive:true});
+  scene.addEventListener('touchend', event => {
+    if (swipeStartX === null) return;
+    const dx = event.changedTouches[0].clientX - swipeStartX, dy = event.changedTouches[0].clientY - swipeStartY;
+    if (Math.abs(dx) > 65 && Math.abs(dx) > Math.abs(dy)) { if (dx > 0) cardAnswer(true); else cardAnswer(false); }
+    swipeStartX = null; swipeStartY = null;
+  }, {passive:true});
+}
+function cardAnswer(known) {
+  const word = studyWords[currentIndex];
+  if (!word) return;
+  reviewWord(word, known ? 2 : 0);
+  nextCard();
+}
+function answerTest(id) {
+  if (testQuestion.answered) return;
+  testQuestion.answered = true;
+  const correct = id === testQuestion.word.id;
+  testTotal++; if (correct) testScore++;
+  reviewWord(testQuestion.word, correct ? 2 : 0);
+  document.querySelectorAll('#testOptions button').forEach(button => {
+    button.disabled = true;
+    const optionId = button.dataset.id;
+    if (optionId === testQuestion.word.id) button.classList.add('border-emerald-500','bg-emerald-50','dark:bg-emerald-950/30');
+    else if (optionId === id) button.classList.add('border-rose-500','bg-rose-50','dark:bg-rose-950/30');
+  });
+  document.getElementById('testFeedback').innerHTML = `<div class="rounded-xl p-4 ${correct ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300' : 'bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300'}"><div class="font-bold">${correct ? 'Верно' : 'Неправильно'}</div><div class="text-sm mt-1">${correct ? 'Хорошая работа.' : 'Правильный ответ: ' + escapeHTML(testQuestion.word.back)}</div>${testQuestion.word.example ? `<p class="text-sm mt-2">${escapeHTML(testQuestion.word.example)}</p>${testQuestion.word.exampleTranslation ? `<p class="text-xs mt-1 opacity-75">${escapeHTML(testQuestion.word.exampleTranslation)}</p>` : ''}` : ''}</div><button onclick="currentIndex++;nextTestQuestion()" class="w-full mt-3 rounded-xl bg-slate-900 dark:bg-indigo-600 text-white py-3 font-semibold">Далее</button>`;
+}
+function checkWrite() {
+  const input = document.getElementById('writeInput');
+  const answer = input.value.trim().toLowerCase().replace(/\s+/g,' ');
+  if (!answer) { input.focus(); return; }
+  const correct = answer === writeQuestion.front.toLowerCase().trim().replace(/\s+/g,' ');
+  writeTotal++; if (correct) writeScore++;
+  reviewWord(writeQuestion, correct ? 2 : 0);
+  input.disabled = true; document.querySelector('#writeForm button').disabled = true;
+  document.getElementById('writeFeedback').innerHTML = `<div class="rounded-xl p-4 ${correct ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300' : 'bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300'}"><div class="font-bold">${correct ? 'Верно' : 'Есть ошибка'}</div><div class="text-sm mt-1">${correct ? 'Отлично!' : 'Правильное написание: ' + escapeHTML(writeQuestion.front)}</div>${writeQuestion.example ? `<p class="text-sm mt-2">${escapeHTML(writeQuestion.example)}</p>${writeQuestion.exampleTranslation ? `<p class="text-xs mt-1 opacity-75">${escapeHTML(writeQuestion.exampleTranslation)}</p>` : ''}` : ''}</div><button onclick="currentIndex++;nextWriteQuestion()" class="w-full mt-3 rounded-xl bg-slate-900 dark:bg-indigo-600 text-white py-3 font-semibold">Следующее слово</button>`;
+}
+function addImportedSet(source) {
+  if (!source || !Array.isArray(source.words)) throw new Error('Неверный набор');
+  const words = source.words.map(word => {
+    const front = String(word.front ?? word.term ?? word.word ?? '').trim();
+    const back = String(word.back ?? word.definition ?? word.translation ?? '').trim();
+    if (!front || !back) return null;
+    return {id:makeId(),front,back,example:String(word.example || ''),exampleTranslation:String(word.exampleTranslation || word.example_translation || '')};
+  }).filter(Boolean);
+  data.sets.push({id:makeId(),name:String(source.name || source.title || 'Импортированный набор'),description:String(source.description || ''),words,learned:[]});
+}
+
+initializeTheme();
+renderHome();
+
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(err => console.warn('PWA registration failed', err)));
+}
+
+window.addEventListener('beforeunload', () => {
+  if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+});
+</script>
+</body>
+</html>
+
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>Lingua — Изучай английский</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif']
+      },
+      colors: {
+        brand: {
+          50: '#eef2ff',
+          100: '#e0e7ff',
+          500: '#6366f1',
+          600: '#4f46e5',
+          700: '#4338ca'
+        }
+      }
+    }
+  }
+};
+</script>
+<style>
+* { -webkit-tap-highlight-color: transparent; }
+body { font-family: Inter, system-ui, sans-serif; }
+button, input, textarea { font: inherit; }
+button { touch-action: manipulation; }
+.safe-bottom { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+.card-scene { perspective: 1200px; }
+.flashcard {
+  position: relative;
+  width: 100%;
+  min-height: 290px;
+  transform-style: preserve-3d;
+  transition: transform .55s cubic-bezier(.2,.7,.2,1);
+  cursor: pointer;
+}
+.flashcard.flipped { transform: rotateY(180deg); }
+.card-face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  border-radius: 1.5rem;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.card-back { transform: rotateY(180deg); }
+.progress-fill { transition: width .3s ease; }
+.modal-backdrop { animation: fadeIn .18s ease; }
+.modal-panel { animation: slideUp .22s ease; }
+@keyframes fadeIn { from {opacity:0} to {opacity:1} }
+@keyframes slideUp { from {transform:translateY(18px);opacity:0} to {transform:translateY(0);opacity:1} }
+.option-btn { transition: background .15s, border-color .15s, transform .15s; }
+.option-btn:active { transform: scale(.98); }
+input:focus, textarea:focus { outline: none; }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-thumb { background: #a1a1aa; border-radius: 10px; }
+body { min-height: 100dvh; }
+</style>
+
+<style>
+/* Lingua 2.0 — minimal interface */
+:root { color-scheme: light; }
+body { background:#f8fafc !important; letter-spacing:-.01em; }
+.dark body { background:#0b1020 !important; }
+header { background:rgba(248,250,252,.92) !important; }
+.dark header { background:rgba(11,16,32,.92) !important; }
+#main { max-width:900px; }
+#main .rounded-3xl.bg-gradient-to-br {
+  border-radius:22px !important;
+}
+#main article, #main .bg-white.dark\\:bg-slate-900 {
+  box-shadow:none !important;
+}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#121212">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<meta name="description" content="Приложение для изучения английского языка с карточками, тестами и тренировкой письма.">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>Lingua — Изучай английский</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif']
+      },
+      colors: {
+        brand: {
+          50: '#eef2ff',
+          100: '#e0e7ff',
+          500: '#6366f1',
+          600: '#4f46e5',
+          700: '#4338ca'
+        }
+      }
+    }
+  }
+};
+</script>
+<style>
+* { -webkit-tap-highlight-color: transparent; }
+body { font-family: Inter, system-ui, sans-serif; }
+button, input, textarea { font: inherit; }
+button { touch-action: manipulation; }
+.safe-bottom { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+.card-scene { perspective: 1200px; }
+.flashcard {
+  position: relative;
+  width: 100%;
+  min-height: 290px;
+  transform-style: preserve-3d;
+  transition: transform .55s cubic-bezier(.2,.7,.2,1);
+  cursor: pointer;
+}
+.flashcard.flipped { transform: rotateY(180deg); }
+.card-face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  border-radius: 1.5rem;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.card-back { transform: rotateY(180deg); }
+.progress-fill { transition: width .3s ease; }
+.modal-backdrop { animation: fadeIn .18s ease; }
+.modal-panel { animation: slideUp .22s ease; }
+@keyframes fadeIn { from {opacity:0} to {opacity:1} }
+@keyframes slideUp { from {transform:translateY(18px);opacity:0} to {transform:translateY(0);opacity:1} }
+.option-btn { transition: background .15s, border-color .15s, transform .15s; }
+.option-btn:active { transform: scale(.98); }
+input:focus, textarea:focus { outline: none; }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-thumb { background: #a1a1aa; border-radius: 10px; }
+body { min-height: 100dvh; }
+</style>
+
+<style>
+/* Lingua 2.0 — minimal interface */
+:root { color-scheme: light; }
+body { background:#f8fafc !important; letter-spacing:-.01em; }
+.dark body { background:#0b1020 !important; }
+header { background:rgba(248,250,252,.92) !important; }
+.dark header { background:rgba(11,16,32,.92) !important; }
+#main { max-width:900px; }
+#main .rounded-3xl.bg-gradient-to-br { border-radius:22px !important; }
+#main article, #main .bg-white.dark\\:bg-slate-900 {
+  box-shadow:none !important;
+}
+#main .rounded-2xl, #main .rounded-xl { border-radius:14px; }
+button { transition:background .16s ease, border-color .16s ease, transform .16s ease; }
+button:focus-visible, input:focus-visible, textarea:focus-visible {
+  outline:3px solid rgba(99,102,241,.28); outline-offset:2px;
+}
+.card-face { border-radius:20px !important; }
+.flashcard { min-height:310px; }
+@media (max-width:640px) {
+  #main { padding-top:20px; }
+  .flashcard { min-height:280px; }
+}
+</style>
+
+</head>
+<body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 transition-colors">
+
+<div id="app" class="min-h-screen flex flex-col">
+  <header class="sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg border-b border-slate-200 dark:border-slate-800">
+    <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+      <button onclick="goHome()" class="flex items-center gap-2">
+        <span class="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-xl font-black">L</span>
+        <span class="text-xl font-bold tracking-tight">Lingua<span class="text-indigo-600">.</span></span>
+      </button>
+      <div class="flex items-center gap-2">
+        <button onclick="toggleTheme()" id="themeBtn" aria-label="Переключить тему" class="w-10 h-10 rounded-xl flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-lg">🌙</button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main" class="flex-1 w-full max-w-5xl mx-auto px-4 py-6 md:py-10"></main>
+
+  <footer class="text-center text-xs text-slate-400 py-5 safe-bottom">
+    Lingua · Твои слова, твой прогресс
+  </footer>
+</div>
+
+<div id="modalRoot"></div>
+<input type="file" id="jsonFile" accept=".json,application/json" class="hidden">
+
+<script>
+'use strict';
+
+const STORAGE_KEY = 'lingua_app_data_v1';
+const THEME_KEY = 'lingua_theme_v1';
+
+const makeId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+
+const demoSet = {
+  id: 'demo-english-a2',
+  name: 'Английский — базовые слова',
+  description: 'Первые пять слов для повседневного общения.',
+  words: [
+    { id: makeId(), front: 'Achieve', back: 'Достигать', example: 'I want to achieve my goals.', exampleTranslation: 'Я хочу достичь своих целей.' },
+    { id: makeId(), front: 'Although', back: 'Хотя', example: 'Although it was raining, we went out.', exampleTranslation: 'Хотя шёл дождь, мы вышли на улицу.' },
+    { id: makeId(), front: 'Improve', back: 'Улучшать', example: 'I want to improve my English.', exampleTranslation: 'Я хочу улучшить свой английский.' },
+    { id: makeId(), front: 'Require', back: 'Требовать', example: 'This job requires experience.', exampleTranslation: 'Эта работа требует опыта.' },
+    { id: makeId(), front: 'Environment', back: 'Окружающая среда', example: 'We should protect the environment.', exampleTranslation: 'Мы должны защищать окружающую среду.' }
+  ],
+  learned: []
+};
+
+let data = loadData();
+let selectedSetId = null;
+let currentMode = 'cards';
+let studyWords = [];
+let currentIndex = 0;
+let isFlipped = false;
+let testQuestion = null;
+let testScore = 0;
+let testTotal = 0;
+let writeQuestion = null;
+let writeScore = 0;
+let writeTotal = 0;
+let swipeStartX = null;
+let swipeStartY = null;
+
+function loadData() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed.sets)) { parsed.sets.forEach(set => (set.words || []).forEach(word => { if (!Number.isFinite(word.intervalDays)) word.intervalDays = 0; if (!Number.isFinite(word.repetitions)) word.repetitions = 0; if (!Number.isFinite(word.lapses)) word.lapses = 0; if (!Number.isFinite(word.mistakeCount)) word.mistakeCount = 0; if (!Number.isFinite(word.easeFactor)) word.easeFactor = 2.5; if (!Number.isFinite(word.dueAt)) word.dueAt = 0; })); return parsed; }
+    }
+  } catch (error) {
+    console.warn('Не удалось прочитать сохранённые данные.', error);
+  }
+  return { sets: [demoSet] };
+}
+
+function saveData() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch (error) {
+    alert('Не удалось сохранить данные. Возможно, в браузере закончилось место.');
+  }
+}
+
+function escapeHTML(value) {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  })[char]);
+}
+
+function getSet(id = selectedSetId) {
+  return data.sets.find(set => set.id === id);
+}
+
+function getProgress(set) {
+  const total = set.words.length;
+  const learned = set.words.filter(word => (set.learned || []).includes(word.id)).length;
+  return {
+    total,
+    learned,
+    percent: total ? Math.round(learned / total * 100) : 0
+  };
+}
+
+function goHome() {
+  selectedSetId = null;
+  renderHome();
+}
+
+function renderHome() {
+  const main = document.getElementById('main');
+  const totalWords = data.sets.reduce((sum, set) => sum + set.words.length, 0);
+  const totalLearned = data.sets.reduce((sum, set) => sum + (set.learned || []).filter(id => set.words.some(word => word.id === id)).length, 0);
+
+  main.innerHTML = `
+    <section class="mb-8">
+      <div class="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 md:p-8 text-slate-900 dark:text-slate-100 overflow-hidden relative">
+        <div class="relative z-10 max-w-xl">
+          <div class="text-indigo-600 dark:text-indigo-400 text-sm font-semibold mb-2">ТВОЙ ЛИЧНЫЙ ТРЕНАЖЁР</div>
+          <h1 class="text-3xl md:text-4xl font-bold leading-tight mb-3">Изучай язык<br>в своем темпе.</h1>
+          <p class="text-slate-600 dark:text-slate-300 text-sm md:text-base mb-5">Запоминай слова, проходи тесты и отслеживай свой прогресс.</p>
+          <button onclick="openCreateSet()" class="bg-indigo-600 text-white font-bold rounded-xl px-5 py-3 hover:bg-indigo-700 transition">+ Создать набор</button>
+        </div>
+        <div class="absolute -right-8 -bottom-12 text-[180px] text-indigo-600 dark:text-indigo-400 opacity-10 select-none">A</div>
+      </div>
+    </section>
+
+    <section class="grid grid-cols-2 gap-3 mb-8">
+      <div class="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4">
+        <div class="text-2xl font-bold">${totalWords}</div>
+        <div class="text-sm text-slate-500 mt-1">Всего слов</div>
+      </div>
+      <div class="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4">
+        <div class="text-2xl font-bold text-emerald-500">${totalLearned}</div>
+        <div class="text-sm text-slate-500 mt-1">Выучено слов</div>
+      </div>
+    </section>
+
+    <section>
+      <div class="flex items-center justify-between gap-3 mb-4">
+        <div>
+          <h2 class="text-xl font-bold">Мои наборы</h2>
+          <p class="text-sm text-slate-500 mt-1">${data.sets.length} наборов карточек</p>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="importJSON()" class="text-sm font-semibold px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800">Импорт</button>
+          <button onclick="exportJSON()" class="text-sm font-semibold px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800">Экспорт</button>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        ${data.sets.length ? data.sets.map(set => {
+          const p = getProgress(set);
+          return `
+            <article class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm">
+              <div class="flex items-start justify-between gap-3">
+                <button class="text-left flex-1 min-w-0" onclick="openSet('${set.id}')">
+                  <h3 class="font-bold text-lg truncate">${escapeHTML(set.name)}</h3>
+                  <p class="text-sm text-slate-500 mt-1 line-clamp-2">${escapeHTML(set.description || 'Без описания')}</p>
+                </button>
+                <button onclick="openSetMenu('${set.id}')" class="w-9 h-9 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-xl flex-shrink-0" aria-label="Меню набора">⋯</button>
+              </div>
+              <div class="flex justify-between text-xs text-slate-500 mt-5 mb-2">
+                <span>${set.words.length} слов</span>
+                <span>${p.learned} / ${p.total} выучено</span>
+              </div>
+              <div class="h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                <div class="h-full rounded-full bg-indigo-500 progress-fill" style="width:${p.percent}%"></div>
+              </div>
+              <button onclick="openSet('${set.id}')" class="mt-4 w-full py-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 font-semibold text-sm hover:bg-indigo-100 dark:hover:bg-indigo-900 transition">Открыть набор →</button>
+            </article>`;
+        }).join('') : `
+          <div class="col-span-full text-center py-12 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700">
+            <div class="text-4xl mb-3">📚</div>
+            <p class="font-semibold">Пока нет наборов</p>
+            <p class="text-sm text-slate-500 mt-1">Создай свой первый набор слов.</p>
+            <button onclick="openCreateSet()" class="mt-4 bg-indigo-600 text-white rounded-xl px-5 py-3 font-semibold">Создать набор</button>
+          </div>`}
+      </div>
+    </section>
+  `;
+}
+
+function openSet(id) {
+  selectedSetId = id;
+  renderSet();
+}
+
+function renderSet() {
+  const set = getSet();
+  if (!set) return goHome();
+  const p = getProgress(set);
+  const main = document.getElementById('main');
+
+  main.innerHTML = `
+    <div class="mb-5">
+      <button onclick="goHome()" class="text-sm text-slate-500 hover:text-indigo-600 mb-4">← Все наборы</button>
+      <div class="flex justify-between items-start gap-3">
+        <div class="min-w-0">
+          <h1 class="text-2xl md:text-3xl font-bold break-words">${escapeHTML(set.name)}</h1>
+          <p class="text-sm text-slate-500 mt-2">${escapeHTML(set.description || 'Без описания')}</p>
+        </div>
+        <button onclick="openSetMenu('${set.id}')" class="w-10 h-10 flex-shrink-0 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xl">⋯</button>
+      </div>
+    </div>
+
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 mb-6">
+      <div class="flex justify-between items-center mb-2">
+        <span class="text-sm font-semibold">Твой прогресс</span>
+        <span class="text-sm font-bold text-indigo-600">${p.percent}%</span>
+      </div>
+      <div class="h-2.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+        <div class="h-full bg-indigo-500 rounded-full progress-fill" style="width:${p.percent}%"></div>
+      </div>
+      <p class="text-xs text-slate-500 mt-2">Выучено ${p.learned} из ${p.total} слов</p>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
+      <button onclick="startStudy('cards')" class="rounded-2xl bg-indigo-600 text-white p-5 text-left hover:bg-indigo-700 transition">
+        <div class="text-2xl mb-3">🃏</div>
+        <div class="font-bold">Карточки</div>
+        <div class="text-indigo-200 text-xs mt-1">Запоминай слова</div>
+      </button>
+      <button onclick="startStudy('test')" class="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 text-left hover:border-indigo-400 transition">
+        <div class="text-2xl mb-3">🎯</div>
+        <div class="font-bold">Тест</div>
+        <div class="text-slate-500 text-xs mt-1">Выбирай перевод</div>
+      </button>
+      <button onclick="startStudy('write')" class="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 text-left hover:border-indigo-400 transition">
+        <div class="text-2xl mb-3">✍️</div>
+        <div class="font-bold">Письмо</div>
+        <div class="text-slate-500 text-xs mt-1">Вводи слово сам</div>
+      </button>
+    </div>
+
+    <section>
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-lg font-bold">Слова в наборе</h2>
+        <button onclick="openWordEditor()" class="text-sm text-indigo-600 dark:text-indigo-400 font-semibold">+ Добавить</button>
+      </div>
+      <div class="flex gap-2 flex-wrap mb-4">
+        <button onclick="openBulkImport()" class="text-xs font-semibold px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800">Массовый импорт</button>
+        <button onclick="exportSet('${set.id}')" class="text-xs font-semibold px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800">Экспорт набора</button>
+      </div>
+      <div class="space-y-2">
+        ${set.words.length ? set.words.map(word => `
+          <div class="flex items-center gap-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3">
+            <div class="w-9 h-9 flex-shrink-0 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 flex items-center justify-center font-bold">A</div>
+            <div class="flex-1 min-w-0">
+              <div class="font-semibold truncate">${escapeHTML(word.front)}</div>
+              <div class="text-sm text-slate-500 truncate">${escapeHTML(word.back)}</div>
+            </div>
+            ${set.learned?.includes(word.id) ? '<span class="text-emerald-500 text-xs">✓</span>' : ''}
+            <button onclick="speak('${escapeJS(word.front)}')" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Озвучить">🔊</button>
+            <button onclick="editWord('${word.id}')" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Изменить">✏️</button>
+            <button onclick="deleteWord('${word.id}')" class="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-red-500" aria-label="Удалить">×</button>
+          </div>`).join('') : '<p class="text-sm text-slate-500 text-center py-8">В этом наборе пока нет слов.</p>'}
+      </div>
+    </section>
+  `;
+}
+
+function escapeJS(value) {
+  return String(value ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/[\r\n]/g, ' ');
+}
+
+function openCreateSet() {
+  showModal('Создать набор', `
+    <form id="setForm" class="space-y-4">
+      <div>
+        <label class="block text-sm font-semibold mb-2">Название</label>
+        <input id="setName" required maxlength="80" placeholder="Например, Английский A2" class="w-full rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-3">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold mb-2">Описание</label>
+        <textarea id="setDescription" rows="2" maxlength="250" placeholder="Краткое описание набора" class="w-full rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-3 resize-none"></textarea>
+      </div>
+      <button class="w-full rounded-xl bg-indigo-600 text-white py-3 font-bold">Создать</button>
+    </form>
+  `);
+  document.getElementById('setForm').onsubmit = event => {
+    event.preventDefault();
+    const name = document.getElementById('setName').value.trim();
+    if (!name) return;
+    data.sets.push({
+      id: makeId(),
+      name,
+      description: document.getElementById('setDescription').value.trim(),
+      words: [],
+      learned: []
+    });
+    saveData();
+    closeModal();
+    renderHome();
+  };
+}
+
+function editSet(id) {
+  const set = getSet(id);
+  if (!set) return;
+  showModal('Редактировать набор', `
+    <form id="editSetForm" class="space-y-4">
+      <div>
+        <label class="block text-sm font-semibold mb-2">Название</label>
+        <input id="editSetName" required maxlength="80" value="${escapeHTML(set.name)}" class="w-full rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-3">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold mb-2">Описание</label>
+        <textarea id="editSetDescription" rows="3" maxlength="250" class="w-full rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-3 resize-none">${escapeHTML(set.description || '')}</textarea>
+      </div>
+      <button class="w-full rounded-xl bg-indigo-600 text-white py-3 font-bold">Сохранить изменения</button>
+    </form>
+  `);
+  document.getElementById('editSetForm').onsubmit = event => {
+    event.preventDefault();
+    set.name = document.getElementById('editSetName').value.trim();
+    set.description = document.getElementById('editSetDescription').value.trim();
+    saveData();
+    closeModal();
+    renderSet();
+  };
+}
+
+function openSetMenu(id) {
+  const set = getSet(id);
+  if (!set) return;
+  showModal('Управление набором', `
+    <div class="space-y-2">
+      <button onclick="closeModal();editSet('${id}')" class="w-full text-left p-4 rounded-xl bg-slate-100 dark:bg-slate-800 font-semibold">✏️ Редактировать набор</button>
+      <button onclick="closeModal();openBulkImport('${id}')" class="w-full text-left p-4 rounded-xl bg-slate-100 dark:bg-slate-800 font-semibold">📥 Импортировать слова</button>
+      <button onclick="closeModal();exportSet('${id}')" class="w-full text-left p-4 rounded-xl bg-slate-100 dark:bg-slate-800 font-semibold">📤 Экспортировать набор</button>
+      <button onclick="deleteSet('${id}')" class="w-full text-left p-4 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-600 font-semibold">🗑️ Удалить набор</button>
+    </div>
+  `);
+}
+
+function deleteSet(id) {
+  if (!confirm('Удалить этот набор вместе со всеми его словами?')) return;
+  data.sets = data.sets.filter(set => set.id !== id);
+  saveData();
+  selectedSetId = null;
+  closeModal();
+  renderHome();
+}
+
+function openWordEditor(wordId = null) {
+  const set = getSet();
+  if (!set) return;
+  const word = wordId ? set.words.find(item => item.id === wordId) : null;
+  showModal(word ? 'Редактировать слово' : 'Новое слово', `
+    <form id="wordForm" class="space-y-4">
+      <div>
+        <label class="block text-sm font-semibold mb-2">Английское слово</label>
+        <input id="wordFront" required maxlength="120" value="${escapeHTML(word?.front || '')}" placeholder="Apple" class="w-full rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-3">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold mb-2">Перевод</label>
+        <input id="wordBack" required maxlength="180" value="${escapeHTML(word?.back || '')}" placeholder="Яблоко" class="w-full rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-3">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold mb-2">Пример предложения (необязательно)</label>
+        <textarea id="wordExample" rows="2" maxlength="300" placeholder="I eat an apple every day." class="w-full rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-3 resize-none">${escapeHTML(word?.example || '')}</textarea>
+      </div>
+      <div>
+        <label class="block text-sm font-semibold mb-2">Перевод примера (необязательно)</label>
+        <textarea id="wordExampleTranslation" rows="2" maxlength="300" placeholder="Я ем яблоко каждый день." class="w-full rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-3 resize-none">${escapeHTML(word?.exampleTranslation || '')}</textarea>
+      </div>
+      <button class="w-full rounded-xl bg-indigo-600 text-white py-3 font-bold">Сохранить слово</button>
+    </form>
+  `);
+  document.getElementById('wordForm').onsubmit = event => {
+    event.preventDefault();
+    const front = document.getElementById('wordFront').value.trim();
+    const back = document.getElementById('wordBack').value.trim();
+    const example = document.getElementById('wordExample').value.trim();
+    const exampleTranslation = document.getElementById('wordExampleTranslation').value.trim();
+    if (!front || !back) return;
+    if (word) {
+      word.front = front;
+      word.back = back;
+      word.example = example;
+      word.exampleTranslation = exampleTranslation;
+    } else {
+      set.words.push({ id: makeId(), front, back, example, exampleTranslation });
+    }
+    saveData();
+    closeModal();
+    renderSet();
+  };
+}
+
+function editWord(id) {
+  openWordEditor(id);
+}
+
+function deleteWord(id) {
+  const set = getSet();
+  if (!set || !confirm('Удалить это слово?')) return;
+  set.words = set.words.filter(word => word.id !== id);
+  set.learned = (set.learned || []).filter(wordId => wordId !== id);
+  saveData();
+  renderSet();
+}
+
+function openBulkImport(id = selectedSetId) {
+  const set = getSet(id);
+  if (!set) return;
+  showModal('Импорт карточек', `
+    <div class="space-y-3">
+      <div class="rounded-xl bg-indigo-50 dark:bg-indigo-950/30 p-3 text-sm">
+        <div class="font-semibold text-indigo-700 dark:text-indigo-300 mb-1">Импорт из Quizlet</div>
+        <ol class="list-decimal pl-5 space-y-1 text-slate-600 dark:text-slate-300">
+          <li>В Quizlet открой набор → меню <b>⋯</b> → <b>Экспорт</b>.</li>
+          <li>Выбери между термином и определением <b>табуляцию</b>, а между карточками — <b>новую строку</b>.</li>
+          <li>Нажми «Копировать» и вставь результат ниже.</li>
+        </ol>
+      </div>
+      <p class="text-xs text-slate-500">Также можно выбрать сохранённый файл TXT, TSV или CSV. Формат распознаётся автоматически.</p>
+      <input id="bulkFile" type="file" accept=".txt,.tsv,.csv,text/plain,text/tab-separated-values,text/csv"
+        class="block w-full text-sm text-slate-500 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 dark:file:bg-slate-800 file:px-3 file:py-2 file:font-semibold">
+      <form id="bulkForm" class="space-y-3">
+        <textarea id="bulkText" required rows="9" placeholder="Вставь экспорт Quizlet сюда…&#10;abandon[TAB]покидать&#10;achieve[TAB]достигать"
+          class="w-full rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-3 resize-y text-sm"></textarea>
+        <div id="bulkImportStatus" class="text-xs text-slate-500">Поддерживаются табуляция Quizlet, CSV с точкой с запятой и старый формат «слово - перевод».</div>
+        <button class="w-full rounded-xl bg-indigo-600 text-white py-3 font-bold">Импортировать карточки</button>
+      </form>
+    </div>
+  `);
+
+  const textArea = document.getElementById('bulkText');
+  const fileInput = document.getElementById('bulkFile');
+  const status = document.getElementById('bulkImportStatus');
+
+  fileInput.onchange = async () => {
+    const file = fileInput.files && fileInput.files[0];
+    if (!file) return;
+    textArea.value = (await file.text()).replace(/^\uFEFF/, '');
+    status.textContent = 'Файл загружен: ' + file.name;
+  };
+
+  document.getElementById('bulkForm').onsubmit = event => {
+    event.preventDefault();
+    const raw = textArea.value.replace(/^\uFEFF/, '').replace(/\r/g, '');
+    const lines = raw.split('\n').map(line => line.trim()).filter(Boolean);
+    let added = 0;
+    let skipped = 0;
+
+    // Quizlet export defaults to one card per line and a TAB between term and definition.
+    // Also accept semicolon-separated CSV and the app's previous "term - definition" format.
+    const sample = lines.slice(0, 10);
+    const tabCount = sample.reduce((n, line) => n + (line.match(/\t/g) || []).length, 0);
+    const semicolonCount = sample.reduce((n, line) => n + (line.match(/;/g) || []).length, 0);
+    const delimiter = tabCount > 0 ? '\t' : (semicolonCount > 0 ? ';' : null);
+
+    function splitQuoted(line, sep) {
+      const result = [];
+      let field = '';
+      let quoted = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '"') {
+          if (quoted && line[i + 1] === '"') { field += '"'; i++; }
+          else quoted = !quoted;
+        } else if (ch === sep && !quoted) {
+          result.push(field.trim());
+          field = '';
+        } else {
+          field += ch;
+        }
+      }
+      result.push(field.trim());
+      return result;
+    }
+
+    lines.forEach(line => {
+      let front = '';
+      let back = '';
+      if (delimiter) {
+        const fields = splitQuoted(line, delimiter);
+        if (fields.length >= 2) {
+          front = fields[0];
+          back = fields.slice(1).join(delimiter).trim();
+        }
+      } else {
+        const match = line.match(/^(.+?)\s+(?:-|—|–)\s+(.+)$/);
+        if (match) { front = match[1].trim(); back = match[2].trim(); }
+        else {
+          const fields = line.split('|').map(value => value.trim());
+          if (fields.length >= 2) { front = fields[0]; back = fields[1]; }
+        }
+      }
+
+      // Ignore common header rows from manually prepared spreadsheets.
+      if (/^(term|word|термин|слово)$/i.test(front) && /^(definition|meaning|translation|определение|перевод)$/i.test(back)) {
+        skipped++;
+        return;
+      }
+      if (!front || !back) { skipped++; return; }
+
+      set.words.push({
+        id: makeId(),
+        front,
+        back,
+        example: '',
+        exampleTranslation: ''
+      });
+      added++;
+    });
+
+    if (!added) {
+      alert('Не удалось распознать карточки. В Quizlet выбери табуляцию между термином и определением и новую строку между карточками.');
+      return;
+    }
+    saveData();
+    closeModal();
+    if (selectedSetId === id) renderSet();
+    alert('Импортировано карточек: ' + added + (skipped ? '\\nПропущено строк: ' + skipped : ''));
+  };
+}
+
+function exportJSON() {
+  downloadJSON(data, 'lingua-all-sets.json');
+}
+
+function exportSet(id) {
+  const set = getSet(id);
+  if (!set) return;
+  downloadJSON(set, 'lingua-' + safeFilename(set.name) + '.json');
+}
+
+function safeFilename(value) {
+  return String(value).toLowerCase().replace(/[^a-z0-9а-яё_-]+/gi, '-').replace(/^-|-$/g, '') || 'set';
+}
+
+function downloadJSON(object, filename) {
+  const blob = new Blob([JSON.stringify(object, null, 2)], { type: 'application/json;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function importJSON() {
+  const fileInput = document.getElementById('jsonFile');
+  fileInput.value = '';
+  fileInput.onchange = async () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+    try {
+      const parsed = JSON.parse(await file.text());
+      if (Array.isArray(parsed.sets)) {
+        parsed.sets.forEach(set => addImportedSet(set));
+      } else if (parsed && Array.isArray(parsed.words)) {
+        addImportedSet(parsed);
+      } else {
+        throw new Error('Неверный формат');
+      }
+      saveData();
+      renderHome();
+      alert('Импорт завершён.');
+    } catch (error) {
+      alert('Не удалось импортировать файл. Проверь его JSON-структуру.');
+    }
+  };
+  fileInput.click();
+}
+
+function addImportedSet(source) {
+  if (!source || !Array.isArray(source.words)) throw new Error('Неверный набор');
+  const words = source.words.map(word => {
+    const front = String(word.front ?? word.term ?? word.word ?? '').trim();
+    const back = String(word.back ?? word.definition ?? word.translation ?? '').trim();
+    if (!front || !back) return null;
+    return {
+      id: makeId(),
+      front,
+      back,
+      example: String(word.example || ''),
+      exampleTranslation: String(word.exampleTranslation || word.example_translation || '')
+    };
+  }).filter(Boolean);
+  data.sets.push({
+    id: makeId(),
+    name: String(source.name || source.title || 'Импортированный набор'),
+    description: String(source.description || ''),
+    words,
+    learned: []
+  });
+}
+
+function startStudy(mode) {
+  const set = getSet();
+  if (!set || !set.words.length) {
+    alert('Сначала добавь слова в набор.');
+    return;
+  }
+  currentMode = mode;
+  studyWords = [...set.words].sort(() => Math.random() - 0.5);
+  currentIndex = 0;
+  isFlipped = false;
+  testScore = 0;
+  testTotal = 0;
+  writeScore = 0;
+  writeTotal = 0;
+  if (mode === 'cards') renderCards();
+  if (mode === 'test') nextTestQuestion();
+  if (mode === 'write') nextWriteQuestion();
+}
+
+function endStudy() {
+  renderSet();
+}
+
+function speak(text) {
+  if (!('speechSynthesis' in window)) {
+    alert('Озвучка не поддерживается этим браузером.');
+    return;
+  }
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = 'en-US';
+  utterance.rate = 0.85;
+  window.speechSynthesis.speak(utterance);
+}
+
+function renderCards() {
+  const set = getSet();
+  if (!set) return goHome();
+  const word = studyWords[currentIndex];
+  const learned = set.learned || [];
+  const known = learned.includes(word.id);
+
+  document.getElementById('main').innerHTML = `
+    <div class="max-w-xl mx-auto">
+      <div class="flex items-center justify-between mb-6">
+        <button onclick="endStudy()" class="text-sm text-slate-500 hover:text-indigo-600">← Выйти</button>
+        <span class="text-sm font-semibold text-slate-500">Карточки</span>
+        <span class="text-sm font-bold">${currentIndex + 1} / ${studyWords.length}</span>
+      </div>
+      <div class="h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden mb-8">
+        <div class="h-full rounded-full bg-indigo-500 progress-fill" style="width:${(currentIndex + 1) / studyWords.length * 100}%"></div>
+      </div>
+      <div class="text-center mb-4">
+        <p class="text-sm text-slate-500">Нажми на карточку, чтобы увидеть перевод</p>
+      </div>
+      <div class="card-scene mb-6" id="cardScene">
+        <div class="flashcard ${isFlipped ? 'flipped' : ''}" id="flashcard" onclick="flipCard()">
+          <div class="card-face bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm">
+            <span class="absolute top-5 left-5 text-xs font-semibold uppercase tracking-wider text-slate-400">English</span>
+            <div class="text-3xl md:text-4xl font-bold text-center break-words">${escapeHTML(word.front)}</div>
+            <button onclick="event.stopPropagation();speak('${escapeJS(word.front)}')" class="mt-7 rounded-full w-12 h-12 bg-indigo-50 dark:bg-indigo-950 text-indigo-600 text-xl">🔊</button>
+            <span class="absolute bottom-5 text-xs text-slate-400">Нажми, чтобы перевернуть</span>
+          </div>
+          <div class="card-face card-back bg-indigo-600 text-white shadow-sm">
+            <span class="absolute top-5 left-5 text-xs font-semibold uppercase tracking-wider text-indigo-200">Перевод</span>
+            <div class="text-3xl md:text-4xl font-bold text-center break-words">${escapeHTML(word.back)}</div>
+            ${word.example ? `<p class="text-sm text-indigo-100 text-center mt-5">${escapeHTML(word.example)}</p>` : ''}
+            <span class="absolute bottom-5 text-xs text-indigo-200">Нажми, чтобы вернуться</span>
+          </div>
+        </div>
+      </div>
+      <div class="flex justify-center items-center gap-2 mb-6 text-sm text-slate-500">
+        <span>${known ? '✓ Уже отмечено как выученное' : 'Ещё не выучено'}</span>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <button onclick="cardAnswer(false)" class="rounded-xl border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 py-4 font-bold">↻ Повторить</button>
+        <button onclick="cardAnswer(true)" class="rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white py-4 font-bold">✓ Знаю</button>
+      </div>
+      <div class="flex justify-between mt-5">
+        <button onclick="previousCard()" ${currentIndex === 0 ? 'disabled' : ''} class="text-sm text-slate-500 disabled:opacity-30">← Назад</button>
+        <button onclick="nextCard()" class="text-sm text-indigo-600 dark:text-indigo-400 font-semibold">Пропустить →</button>
+      </div>
+    </div>
+  `;
+
+  const scene = document.getElementById('cardScene');
+  scene.addEventListener('touchstart', event => {
+    swipeStartX = event.changedTouches[0].clientX;
+    swipeStartY = event.changedTouches[0].clientY;
+  }, { passive: true });
+  scene.addEventListener('touchend', event => {
+    if (swipeStartX === null) return;
+    const dx = event.changedTouches[0].clientX - swipeStartX;
+    const dy = event.changedTouches[0].clientY - swipeStartY;
+    if (Math.abs(dx) > 65 && Math.abs(dx) > Math.abs(dy)) {
+      if (dx > 0) cardAnswer(true);
+      else cardAnswer(false);
+    }
+    swipeStartX = null;
+    swipeStartY = null;
+  }, { passive: true });
+}
+
+function flipCard() {
+  isFlipped = !isFlipped;
+  const card = document.getElementById('flashcard');
+  if (card) card.classList.toggle('flipped', isFlipped);
+}
+
+function cardAnswer(known) {
+  const set = getSet();
+  const word = studyWords[currentIndex];
+  if (!set) return;
+  set.learned = set.learned || [];
+  if (known && !set.learned.includes(word.id)) set.learned.push(word.id);
+  if (!known) set.learned = set.learned.filter(id => id !== word.id);
+  saveData();
+  nextCard();
+}
+
+function nextCard() {
+  if (currentIndex < studyWords.length - 1) {
+    currentIndex++;
+    isFlipped = false;
+    renderCards();
+  } else {
+    showStudyComplete('Карточки завершены', 'Ты просмотрел все карточки этого раунда.');
+  }
+}
+
+function previousCard() {
+  if (currentIndex > 0) {
+    currentIndex--;
+    isFlipped = false;
+    renderCards();
+  }
+}
+
+function showStudyComplete(title, message) {
+  const set = getSet();
+  const p = set ? getProgress(set) : { learned: 0, total: 0, percent: 0 };
+  document.getElementById('main').innerHTML = `
+    <div class="max-w-md mx-auto text-center py-12">
+      <div class="text-6xl mb-5">🎉</div>
+      <h1 class="text-3xl font-bold mb-3">${escapeHTML(title)}</h1>
+      <p class="text-slate-500 mb-8">${escapeHTML(message)}</p>
+      <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 mb-6">
+        <div class="text-3xl font-bold text-indigo-600">${p.percent}%</div>
+        <div class="text-sm text-slate-500 mt-1">Общий прогресс набора</div>
+        <div class="text-sm mt-4">${p.learned} из ${p.total} слов выучено</div>
+      </div>
+      <button onclick="renderSet()" class="w-full rounded-xl bg-indigo-600 text-white py-3 font-bold">Вернуться к набору</button>
+    </div>
+  `;
+}
+
+function nextTestQuestion() {
+  if (currentIndex >= studyWords.length) {
+    showQuizResult('Тест завершён', testScore, testTotal);
+    return;
+  }
+  const set = getSet();
+  const word = studyWords[currentIndex];
+  const alternatives = set.words.filter(item => item.id !== word.id).sort(() => Math.random() - .5).slice(0, 3);
+  const options = [...alternatives, word].sort(() => Math.random() - .5);
+  testQuestion = { word, options, answered: false };
+  renderTest();
+}
+
+function renderTest() {
+  const question = testQuestion;
+  if (!question) return;
+  document.getElementById('main').innerHTML = `
+    <div class="max-w-xl mx-auto">
+      <div class="flex items-center justify-between mb-6">
+        <button onclick="endStudy()" class="text-sm text-slate-500">← Выйти</button>
+        <span class="text-sm font-semibold text-slate-500">Тест</span>
+        <span class="text-sm font-bold">${currentIndex + 1} / ${studyWords.length}</span>
+      </div>
+      <div class="h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden mb-8">
+        <div class="h-full bg-indigo-500 rounded-full" style="width:${currentIndex / studyWords.length * 100}%"></div>
+      </div>
+      <div class="text-center mb-8">
+        <p class="text-sm text-slate-500 mb-4">Выбери правильный перевод</p>
+        <h1 class="text-3xl font-bold mb-3">${escapeHTML(question.word.front)}</h1>
+        <button onclick="speak('${escapeJS(question.word.front)}')" class="text-indigo-600 text-sm font-semibold">🔊 Прослушать</button>
+      </div>
+      <div class="space-y-3" id="testOptions">
+        ${question.options.map(option => `
+          <button onclick="answerTest('${option.id}')" data-id="${option.id}" class="option-btn w-full text-left p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-medium">
+            ${escapeHTML(option.back)}
+          </button>
+        `).join('')}
+      </div>
+      <div id="testFeedback" class="mt-5"></div>
+      <div class="text-center mt-5 text-sm text-slate-500">Правильных ответов: ${testScore} / ${testTotal}</div>
+    </div>
+  `;
+}
+
+function answerTest(id) {
+  if (testQuestion.answered) return;
+  testQuestion.answered = true;
+  const correct = id === testQuestion.word.id;
+  testTotal++;
+  if (correct) testScore++;
+  const buttons = document.querySelectorAll('#testOptions button');
+  buttons.forEach(button => {
+    button.disabled = true;
+    const optionId = button.dataset.id;
+    if (optionId === testQuestion.word.id) {
+      button.classList.add('border-emerald-500', 'bg-emerald-50', 'dark:bg-emerald-950/30');
+    } else if (optionId === id) {
+      button.classList.add('border-red-500', 'bg-red-50', 'dark:bg-red-950/30');
+    }
+  });
+  const feedback = document.getElementById('testFeedback');
+  feedback.innerHTML = `
+    <div class="rounded-xl p-4 ${correct ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300' : 'bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300'}">
+      <div class="font-bold">${correct ? '✓ Правильно!' : '✗ Неправильно'}</div>
+      <div class="text-sm mt-1">${correct ? 'Отличная работа.' : 'Правильный ответ: ' + escapeHTML(testQuestion.word.back)}</div>
+    </div>
+    <button onclick="currentIndex++;nextTestQuestion()" class="w-full mt-3 rounded-xl bg-indigo-600 text-white py-3 font-bold">Следующий вопрос →</button>
+  `;
+}
+
+function showQuizResult(title, score, total) {
+  const percent = total ? Math.round(score / total * 100) : 0;
+  document.getElementById('main').innerHTML = `
+    <div class="max-w-md mx-auto text-center py-12">
+      <div class="text-6xl mb-5">${percent >= 80 ? '🏆' : '💪'}</div>
+      <h1 class="text-3xl font-bold mb-3">${title}</h1>
+      <p class="text-slate-500 mb-8">Результаты твоей тренировки</p>
+      <div class="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-7 mb-6">
+        <div class="text-5xl font-black text-indigo-600">${percent}%</div>
+        <div class="text-slate-500 mt-2">Правильных ответов</div>
+        <div class="mt-5 font-bold">${score} из ${total}</div>
+      </div>
+      <button onclick="renderSet()" class="w-full rounded-xl bg-indigo-600 text-white py-3 font-bold">Вернуться к набору</button>
+    </div>
+  `;
+}
+
+function nextWriteQuestion() {
+  if (currentIndex >= studyWords.length) {
+    showQuizResult('Тренировка завершена', writeScore, writeTotal);
+    return;
+  }
+  writeQuestion = studyWords[currentIndex];
+  renderWrite();
+}
+
+function renderWrite() {
+  const word = writeQuestion;
+  document.getElementById('main').innerHTML = `
+    <div class="max-w-xl mx-auto">
+      <div class="flex items-center justify-between mb-6">
+        <button onclick="endStudy()" class="text-sm text-slate-500">← Выйти</button>
+        <span class="text-sm font-semibold text-slate-500">Письмо</span>
+        <span class="text-sm font-bold">${currentIndex + 1} / ${studyWords.length}</span>
+      </div>
+      <div class="h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden mb-8">
+        <div class="h-full bg-indigo-500 rounded-full" style="width:${currentIndex / studyWords.length * 100}%"></div>
+      </div>
+      <div class="text-center mb-8">
+        <p class="text-sm text-slate-500 mb-4">Напиши английское слово по переводу</p>
+        <h1 class="text-3xl font-bold">${escapeHTML(word.back)}</h1>
+      </div>
+      <form id="writeForm" class="space-y-4">
+        <input id="writeInput" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Введи слово на английском..." class="w-full text-center text-xl rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-4">
+        <button class="w-full rounded-xl bg-indigo-600 text-white py-4 font-bold">Проверить ответ</button>
+      </form>
+      <div id="writeFeedback" class="mt-4"></div>
+      <div class="text-center mt-5 text-sm text-slate-500">Правильных ответов: ${writeScore} / ${writeTotal}</div>
+    </div>
+  `;
+  document.getElementById('writeForm').onsubmit = event => {
+    event.preventDefault();
+    checkWrite();
+  };
+  document.getElementById('writeInput').focus();
+}
+
+function checkWrite() {
+  const input = document.getElementById('writeInput');
+  const answer = input.value.trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!answer) {
+    input.focus();
+    return;
+  }
+  const correctAnswer = writeQuestion.front.toLowerCase().trim().replace(/\s+/g, ' ');
+  const correct = answer === correctAnswer;
+  writeTotal++;
+  if (correct) writeScore++;
+  input.disabled = true;
+  document.querySelector('#writeForm button').disabled = true;
+  document.getElementById('writeFeedback').innerHTML = `
+    <div class="rounded-xl p-4 ${correct ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300' : 'bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300'}">
+      <div class="font-bold">${correct ? '✓ Верно!' : '✗ Есть ошибка'}</div>
+      <div class="text-sm mt-1">${correct ? 'Отлично, ты написал правильно.' : 'Правильное написание: ' + escapeHTML(writeQuestion.front)}</div>
+    </div>
+    <button onclick="currentIndex++;nextWriteQuestion()" class="w-full mt-3 rounded-xl bg-indigo-600 text-white py-3 font-bold">Следующее слово →</button>
+  `;
+}
+
+function showModal(title, content) {
+  const root = document.getElementById('modalRoot');
+  root.innerHTML = `
+    <div class="modal-backdrop fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4" onclick="if(event.target===this)closeModal()">
+      <div class="modal-panel w-full sm:max-w-md max-h-[90dvh] overflow-y-auto bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl p-5 sm:p-6 shadow-2xl">
+        <div class="flex items-center justify-between mb-5">
+          <h2 class="text-xl font-bold">${escapeHTML(title)}</h2>
+          <button onclick="closeModal()" class="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 text-xl">×</button>
+        </div>
+        ${content}
+      </div>
+    </div>
+  `;
+}
+
+function closeModal() {
+  document.getElementById('modalRoot').innerHTML = '';
+}
+
+function toggleTheme() {
+  const isDark = document.documentElement.classList.toggle('dark');
+  localStorage.setItem(THEME_KEY, isDark ? 'dark' : 'light');
+  updateThemeButton();
+}
+
+function updateThemeButton() {
+  const button = document.getElementById('themeBtn');
+  if (!button) return;
+  button.textContent = document.documentElement.classList.contains('dark') ? '☀️' : '🌙';
+}
+
+function initializeTheme() {
+  let theme = 'light';
+  try {
+    theme = localStorage.getItem(THEME_KEY) || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  } catch (error) {}
+  document.documentElement.classList.toggle('dark', theme === 'dark');
+  updateThemeButton();
+}
+
+
+/* ---------------- Lingua 2.0: spaced repetition ---------------- */
+const REVIEW_MINUTES_AGAIN = 10;
+function ensureReviewData(word) {
+  if (!Number.isFinite(word.intervalDays)) word.intervalDays = 0;
+  if (!Number.isFinite(word.repetitions)) word.repetitions = 0;
+  if (!Number.isFinite(word.lapses)) word.lapses = 0;
+  if (!Number.isFinite(word.mistakeCount)) word.mistakeCount = 0;
+  if (!Number.isFinite(word.easeFactor)) word.easeFactor = 2.5;
+  if (!Number.isFinite(word.dueAt)) word.dueAt = 0;
+  return word;
+}
+function reviewWord(word, quality) {
+  ensureReviewData(word);
+  const now = Date.now();
+  if (quality <= 0) {
+    word.lapses += 1;
+    word.mistakeCount += 1;
+    word.repetitions = 0;
+    word.intervalDays = 0;
+    word.dueAt = now + REVIEW_MINUTES_AGAIN * 60 * 1000;
+    word.easeFactor = Math.max(1.3, word.easeFactor - 0.2);
+  } else {
+    if (quality === 1) {
+      word.intervalDays = word.repetitions === 0 ? 1 : Math.max(1, Math.round(word.intervalDays * 1.2));
+      word.easeFactor = Math.max(1.3, word.easeFactor - 0.05);
+    } else {
+      word.intervalDays = word.repetitions === 0 ? 3 : word.repetitions === 1 ? 7 : Math.max(1, Math.round(word.intervalDays * word.easeFactor));
+      if (quality === 3) word.easeFactor = Math.min(3.0, word.easeFactor + 0.1);
+    }
+    word.repetitions += 1;
+    word.dueAt = now + word.intervalDays * 24 * 60 * 60 * 1000;
+  }
+  word.lastReviewedAt = now;
+  const set = getSet();
+  if (set) {
+    set.learned = set.learned || [];
+    if (word.repetitions >= 3 && word.intervalDays >= 14) {
+      if (!set.learned.includes(word.id)) set.learned.push(word.id);
+    } else {
+      set.learned = set.learned.filter(id => id !== word.id);
+    }
+  }
+  saveData();
+}
+function dueWords(set) {
+  const now = Date.now();
+  return set.words.filter(word => !ensureReviewData(word).dueAt || word.dueAt <= now);
+}
+function mistakeWords(set) {
+  return set.words.filter(word => {
+    ensureReviewData(word);
+    return word.mistakeCount > 0 || word.lapses > 0;
+  }).sort((a,b) => (b.mistakeCount + b.lapses) - (a.mistakeCount + a.lapses));
+}
+function startStudy(mode) {
+  const set = getSet();
+  if (!set || !set.words.length) { alert('Сначала добавь слова в набор.'); return; }
+  currentMode = mode;
+  if (mode === 'review') studyWords = dueWords(set);
+  else if (mode === 'mistakes') studyWords = mistakeWords(set);
+  else studyWords = [...set.words].sort(() => Math.random() - 0.5);
+  if (!studyWords.length) {
+    alert(mode === 'review' ? 'На сегодня повторений нет. Отличная работа!' : 'Ошибок пока нет. Продолжай заниматься!');
+    return;
+  }
+  currentIndex = 0; isFlipped = false;
+  testScore = 0; testTotal = 0; writeScore = 0; writeTotal = 0;
+  if (mode === 'cards' || mode === 'review' || mode === 'mistakes') renderCards();
+  if (mode === 'test') nextTestQuestion();
+  if (mode === 'write') nextWriteQuestion();
+}
+function renderSet() {
+  const set = getSet();
+  if (!set) return goHome();
+  set.words.forEach(ensureReviewData);
+  const p = getProgress(set);
+  const due = dueWords(set).length;
+  const mistakes = mistakeWords(set).length;
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="mb-7">
+      <button onclick="goHome()" class="text-sm text-slate-500 hover:text-indigo-600 mb-4">← Все наборы</button>
+      <div class="flex justify-between items-start gap-3">
+        <div class="min-w-0">
+          <h1 class="text-2xl md:text-3xl font-bold break-words">${escapeHTML(set.name)}</h1>
+          <p class="text-sm text-slate-500 mt-2">${escapeHTML(set.description || 'Без описания')}</p>
+        </div>
+        <button onclick="openSetMenu('${set.id}')" class="w-10 h-10 flex-shrink-0 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xl">⋯</button>
+      </div>
+    </div>
+    <div class="grid grid-cols-3 gap-2 mb-6">
+      <div class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3"><div class="text-xl font-bold">${set.words.length}</div><div class="text-xs text-slate-500">Всего слов</div></div>
+      <div class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3"><div class="text-xl font-bold text-indigo-600">${due}</div><div class="text-xs text-slate-500">К повторению</div></div>
+      <div class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3"><div class="text-xl font-bold text-rose-500">${mistakes}</div><div class="text-xs text-slate-500">С ошибками</div></div>
+    </div>
+    <div class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 mb-6">
+      <div class="flex justify-between items-center mb-2"><span class="text-sm font-semibold">Выучено</span><span class="text-sm font-bold text-indigo-600">${p.percent}%</span></div>
+      <div class="h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden"><div class="h-full bg-indigo-500 rounded-full" style="width:${p.percent}%"></div></div>
+    </div>
+    <section class="mb-8">
+      <h2 class="text-lg font-bold mb-3">Учиться</h2>
+      <div class="grid grid-cols-2 gap-3">
+        <button onclick="startStudy('review')" class="col-span-2 rounded-xl bg-indigo-50 dark:bg-indigo-600 border border-indigo-200 dark:border-indigo-500 text-slate-900 dark:text-white p-4 text-left transition-colors">
+          <div class="flex justify-between items-center"><span class="font-semibold">Повторить сегодня</span><span class="text-sm opacity-80">${due} слов →</span></div>
+          <p class="text-xs text-indigo-700 dark:text-indigo-100 mt-1">Интервальное повторение</p>
+        </button>
+        <button onclick="startStudy('cards')" class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 text-left"><div class="font-semibold">Карточки</div><div class="text-xs text-slate-500 mt-1">Все слова</div></button>
+        <button onclick="startStudy('mistakes')" class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 text-left"><div class="font-semibold">Мои ошибки</div><div class="text-xs text-slate-500 mt-1">${mistakes} слов</div></button>
+        <button onclick="startStudy('test')" class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 text-left"><div class="font-semibold">Тест</div><div class="text-xs text-slate-500 mt-1">Выбери перевод</div></button>
+        <button onclick="startStudy('write')" class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 text-left"><div class="font-semibold">Письмо</div><div class="text-xs text-slate-500 mt-1">Введи слово</div></button>
+      </div>
+    </section>
+    <section>
+      <div class="flex items-center justify-between mb-3"><h2 class="text-lg font-bold">Слова</h2><button onclick="openWordEditor()" class="text-sm text-indigo-600 dark:text-indigo-400 font-semibold">+ Добавить</button></div>
+      <div class="flex gap-2 flex-wrap mb-4">
+        <button onclick="openBulkImport()" class="text-xs font-semibold px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800">Массовый импорт</button>
+        <button onclick="exportSet('${set.id}')" class="text-xs font-semibold px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800">Экспорт набора</button>
+      </div>
+      <div class="space-y-2">
+        ${set.words.length ? set.words.map(word => {
+          ensureReviewData(word);
+          return `<div class="flex items-center gap-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3">
+            <div class="w-8 h-8 flex-shrink-0 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 flex items-center justify-center text-sm font-bold">A</div>
+            <div class="flex-1 min-w-0"><div class="font-semibold truncate">${escapeHTML(word.front)}</div><div class="text-sm text-slate-500 truncate">${escapeHTML(word.back)}</div>${word.example ? `<div class="text-xs text-slate-400 mt-1 truncate">${escapeHTML(word.example)}</div>` : ''}</div>
+            ${word.mistakeCount ? `<span class="text-xs text-rose-500" title="Ошибок: ${word.mistakeCount}">${word.mistakeCount}×</span>` : ''}
+            <button onclick="speak('${escapeJS(word.front)}')" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Озвучить">⌁</button>
+            <button onclick="editWord('${word.id}')" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Изменить">✎</button>
+            <button onclick="deleteWord('${word.id}')" class="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-red-500" aria-label="Удалить">×</button>
+          </div>`;
+        }).join('') : '<p class="text-sm text-slate-500 text-center py-8">В этом наборе пока нет слов.</p>'}
+      </div>
+    </section>`;
+  saveData();
+}
+function renderCards() {
+  const set = getSet();
+  if (!set) return goHome();
+  const word = studyWords[currentIndex];
+  const label = currentMode === 'review' ? 'Повторение' : currentMode === 'mistakes' ? 'Мои ошибки' : 'Карточки';
+  document.getElementById('main').innerHTML = `
+    <div class="max-w-xl mx-auto">
+      <div class="flex items-center justify-between mb-6">
+        <button onclick="endStudy()" class="text-sm text-slate-500">← Выйти</button>
+        <span class="text-sm font-semibold text-slate-500">${label}</span>
+        <span class="text-sm font-bold">${currentIndex + 1} / ${studyWords.length}</span>
+      </div>
+      <div class="h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden mb-8"><div class="h-full rounded-full bg-indigo-500 progress-fill" style="width:${(currentIndex + 1) / studyWords.length * 100}%"></div></div>
+      <p class="text-center text-sm text-slate-500 mb-4">Вспомни значение и переверни карточку</p>
+      <div class="card-scene mb-6" id="cardScene">
+        <div class="flashcard ${isFlipped ? 'flipped' : ''}" id="flashcard" onclick="flipCard()">
+          <div class="card-face bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+            <span class="absolute top-5 left-5 text-xs uppercase tracking-wider text-slate-400">English</span>
+            <div class="text-3xl md:text-4xl font-bold text-center break-words">${escapeHTML(word.front)}</div>
+            <button onclick="event.stopPropagation();speak('${escapeJS(word.front)}')" class="mt-7 rounded-full w-11 h-11 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-200">⌁</button>
+            <span class="absolute bottom-5 text-xs text-slate-400">Нажми, чтобы увидеть перевод</span>
+          </div>
+          <div class="card-face card-back bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-900 text-slate-900 dark:text-white">
+            <span class="absolute top-5 left-5 text-xs uppercase tracking-wider text-slate-400">Перевод</span>
+            <div class="text-2xl md:text-3xl font-bold text-center break-words">${escapeHTML(word.back)}</div>
+            ${word.example ? `<div class="mt-5 text-center max-w-full"><p class="text-sm font-medium text-indigo-700 dark:text-indigo-300">${escapeHTML(word.example)}</p>${word.exampleTranslation ? `<p class="text-xs text-slate-500 mt-1">${escapeHTML(word.exampleTranslation)}</p>` : ''}<button onclick="event.stopPropagation();speak('${escapeJS(word.example)}')" class="mt-2 text-xs text-slate-500">Прослушать пример</button></div>` : '<p class="text-xs text-slate-400 mt-4">Добавь пример в редакторе слова</p>'}
+            <span class="absolute bottom-5 text-xs text-slate-400">Оцени, насколько легко вспомнил</span>
+          </div>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <button onclick="cardAnswer(false)" class="rounded-xl border border-rose-200 dark:border-rose-900 bg-white dark:bg-slate-900 text-rose-600 py-4 font-semibold">Не вспомнил</button>
+        <button onclick="cardAnswer(true)" class="rounded-xl bg-slate-900 dark:bg-indigo-600 text-white py-4 font-semibold">Вспомнил</button>
+      </div>
+      <div class="flex justify-between mt-5"><button onclick="previousCard()" ${currentIndex === 0 ? 'disabled' : ''} class="text-sm text-slate-500 disabled:opacity-30">← Назад</button><button onclick="nextCard()" class="text-sm text-slate-500">Пропустить →</button></div>
+    </div>`;
+  const scene = document.getElementById('cardScene');
+  scene.addEventListener('touchstart', event => { swipeStartX = event.changedTouches[0].clientX; swipeStartY = event.changedTouches[0].clientY; }, {passive:true});
+  scene.addEventListener('touchend', event => {
+    if (swipeStartX === null) return;
+    const dx = event.changedTouches[0].clientX - swipeStartX, dy = event.changedTouches[0].clientY - swipeStartY;
+    if (Math.abs(dx) > 65 && Math.abs(dx) > Math.abs(dy)) { if (dx > 0) cardAnswer(true); else cardAnswer(false); }
+    swipeStartX = null; swipeStartY = null;
+  }, {passive:true});
+}
+function cardAnswer(known) {
+  const word = studyWords[currentIndex];
+  if (!word) return;
+  reviewWord(word, known ? 2 : 0);
+  nextCard();
+}
+function answerTest(id) {
+  if (testQuestion.answered) return;
+  testQuestion.answered = true;
+  const correct = id === testQuestion.word.id;
+  testTotal++; if (correct) testScore++;
+  reviewWord(testQuestion.word, correct ? 2 : 0);
+  document.querySelectorAll('#testOptions button').forEach(button => {
+    button.disabled = true;
+    const optionId = button.dataset.id;
+    if (optionId === testQuestion.word.id) button.classList.add('border-emerald-500','bg-emerald-50','dark:bg-emerald-950/30');
+    else if (optionId === id) button.classList.add('border-rose-500','bg-rose-50','dark:bg-rose-950/30');
+  });
+  document.getElementById('testFeedback').innerHTML = `<div class="rounded-xl p-4 ${correct ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300' : 'bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300'}"><div class="font-bold">${correct ? 'Верно' : 'Неправильно'}</div><div class="text-sm mt-1">${correct ? 'Хорошая работа.' : 'Правильный ответ: ' + escapeHTML(testQuestion.word.back)}</div>${testQuestion.word.example ? `<p class="text-sm mt-2">${escapeHTML(testQuestion.word.example)}</p>${testQuestion.word.exampleTranslation ? `<p class="text-xs mt-1 opacity-75">${escapeHTML(testQuestion.word.exampleTranslation)}</p>` : ''}` : ''}</div><button onclick="currentIndex++;nextTestQuestion()" class="w-full mt-3 rounded-xl bg-slate-900 dark:bg-indigo-600 text-white py-3 font-semibold">Далее</button>`;
+}
+function checkWrite() {
+  const input = document.getElementById('writeInput');
+  const answer = input.value.trim().toLowerCase().replace(/\s+/g,' ');
+  if (!answer) { input.focus(); return; }
+  const correct = answer === writeQuestion.front.toLowerCase().trim().replace(/\s+/g,' ');
+  writeTotal++; if (correct) writeScore++;
+  reviewWord(writeQuestion, correct ? 2 : 0);
+  input.disabled = true; document.querySelector('#writeForm button').disabled = true;
+  document.getElementById('writeFeedback').innerHTML = `<div class="rounded-xl p-4 ${correct ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300' : 'bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300'}"><div class="font-bold">${correct ? 'Верно' : 'Есть ошибка'}</div><div class="text-sm mt-1">${correct ? 'Отлично!' : 'Правильное написание: ' + escapeHTML(writeQuestion.front)}</div>${writeQuestion.example ? `<p class="text-sm mt-2">${escapeHTML(writeQuestion.example)}</p>${writeQuestion.exampleTranslation ? `<p class="text-xs mt-1 opacity-75">${escapeHTML(writeQuestion.exampleTranslation)}</p>` : ''}` : ''}</div><button onclick="currentIndex++;nextWriteQuestion()" class="w-full mt-3 rounded-xl bg-slate-900 dark:bg-indigo-600 text-white py-3 font-semibold">Следующее слово</button>`;
+}
+function addImportedSet(source) {
+  if (!source || !Array.isArray(source.words)) throw new Error('Неверный набор');
+  const words = source.words.map(word => {
+    const front = String(word.front ?? word.term ?? word.word ?? '').trim();
+    const back = String(word.back ?? word.definition ?? word.translation ?? '').trim();
+    if (!front || !back) return null;
+    return {id:makeId(),front,back,example:String(word.example || ''),exampleTranslation:String(word.exampleTranslation || word.example_translation || '')};
+  }).filter(Boolean);
+  data.sets.push({id:makeId(),name:String(source.name || source.title || 'Импортированный набор'),description:String(source.description || ''),words,learned:[]});
+}
+
+initializeTheme();
+renderHome();
+
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(err => console.warn('PWA registration failed', err)));
+}
+
+window.addEventListener('beforeunload', () => {
+  if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+});
+</script>
+</body>
+</html>
+
 #main .rounded-2xl, #main .rounded-xl { border-radius:14px; }
 button { transition:background .16s ease, border-color .16s ease, transform .16s ease; }
 button:focus-visible, input:focus-visible, textarea:focus-visible {
