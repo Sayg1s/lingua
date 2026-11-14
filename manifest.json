@@ -1,3 +1,4 @@
+
 {
   "name": "Lingua — изучение английского",
   "short_name": "Lingua",
@@ -5,9 +6,9 @@
   "start_url": "./index.html",
   "scope": "./",
   "orientation": "portrait",
- "theme_color": "#121212",
-"background_color": "#121212",
-"display": "standalone"
+  "theme_color": "#121212",
+  "background_color": "#121212",
+  "display": "standalone",
   "icons": [
     {
       "src": "./icon-192.png",
