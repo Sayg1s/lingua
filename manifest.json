@@ -4,10 +4,10 @@
   "description": "Карточки, примеры и интервальное повторение английских слов.",
   "start_url": "./index.html",
   "scope": "./",
-  "display": "standalone",
   "orientation": "portrait",
-  "theme_color": "#121212",
-"background_color": "#121212"
+ "theme_color": "#121212",
+"background_color": "#121212",
+"display": "standalone"
   "icons": [
     {
       "src": "./icon-192.png",
