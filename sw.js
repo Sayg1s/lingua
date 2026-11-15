@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lingua-v6-icon';
+const CACHE_NAME = 'lingua-v7-dark-navigation';
 const CORE = ['./', './index.html', './manifest.json', './icon.svg', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(CORE)).then(() => self.skipWaiting()));
