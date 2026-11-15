@@ -34,17 +34,174 @@ tailwind.config = {
   }
 };
 </script>
+
 <style>
 * { -webkit-tap-highlight-color: transparent; }
-body { font-family: Inter, system-ui, sans-serif; }
+:root {
+  color-scheme: light;
+  --page: #f5f7fa;
+  --surface: #ffffff;
+  --surface-muted: #f1f4f8;
+  --border: #e1e6ed;
+  --text: #182230;
+  --muted: #667085;
+  --accent: #2457a6;
+  --accent-hover: #1d4788;
+  --accent-soft: #edf3fb;
+}
+:root.dark {
+  color-scheme: dark;
+  --page: #111827;
+  --surface: #1f2937;
+  --surface-muted: #273449;
+  --border: #374151;
+  --text: #f3f4f6;
+  --muted: #a3adbb;
+  --accent: #79a8e8;
+  --accent-hover: #9bbcf0;
+  --accent-soft: #263b57;
+}
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body {
+  min-height: 100dvh;
+  overflow-x: hidden;
+  background: var(--page) !important;
+  color: var(--text);
+  font-family: Inter, system-ui, sans-serif;
+  letter-spacing: -.01em;
+}
 button, input, textarea { font: inherit; }
-button { touch-action: manipulation; }
+button { touch-action: manipulation; cursor: pointer; }
+button:focus-visible, input:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+input:focus, textarea:focus { outline: none; }
+#app { min-height: 100svh; }
+header {
+  padding-top: env(safe-area-inset-top);
+  background: var(--surface) !important;
+  border-color: var(--border) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+header > div { min-height: 60px; }
+#main {
+  width: 100%;
+  max-width: 900px;
+  padding-bottom: clamp(28px, 6vw, 56px);
+  color: var(--text);
+}
+#main article, #main section > div, #modalRoot .modal-panel {
+  min-width: 0;
+}
+#main [class~="bg-white"],
+#modalRoot [class~="bg-white"] {
+  background: var(--surface) !important;
+}
+html.dark #main [class~="dark:bg-slate-900"],
+html.dark #modalRoot [class~="dark:bg-slate-900"] {
+  background: var(--surface) !important;
+}
+#main [class~="bg-slate-100"],
+#main [class~="bg-slate-50"],
+#modalRoot [class~="bg-slate-100"] {
+  background: var(--surface-muted) !important;
+}
+html.dark #main [class~="dark:bg-slate-800"],
+html.dark #modalRoot [class~="dark:bg-slate-800"] {
+  background: var(--surface-muted) !important;
+}
+#main [class*="border-slate-"],
+#modalRoot [class*="border-slate-"] {
+  border-color: var(--border) !important;
+}
+#main [class*="text-slate-"],
+#modalRoot [class*="text-slate-"] {
+  color: var(--muted);
+}
+#main [class~="text-slate-900"],
+html.dark #main [class~="dark:text-slate-100"] {
+  color: var(--text) !important;
+}
+#main [class~="bg-blue-600"],
+#main [class~="bg-blue-700"],
+#modalRoot [class~="bg-blue-600"] {
+  background: var(--accent) !important;
+}
+#main [class~="bg-blue-600"]:hover,
+#main [class~="bg-blue-700"]:hover,
+#modalRoot [class~="bg-blue-600"]:hover {
+  background: var(--accent-hover) !important;
+}
+#main [class~="bg-blue-50"],
+#modalRoot [class~="bg-blue-50"] {
+  background: var(--accent-soft) !important;
+}
+html.dark #main [class~="dark:bg-blue-950"],
+html.dark #modalRoot [class~="dark:bg-blue-950"] {
+  background: var(--accent-soft) !important;
+}
+#main [class*="text-blue-"],
+#modalRoot [class*="text-blue-"] {
+  color: var(--accent) !important;
+}
+html.dark #main [class*="dark:text-blue-"],
+html.dark #modalRoot [class*="dark:text-blue-"] {
+  color: var(--accent) !important;
+}
+#main [class*="hover:border-blue-"]:hover {
+  border-color: var(--accent) !important;
+}
+#main [class*="hover:bg-slate-"]:hover,
+#modalRoot [class*="hover:bg-slate-"]:hover {
+  background: var(--surface-muted) !important;
+}
+#main .rounded-3xl, #main .rounded-2xl, #main .rounded-xl,
+#modalRoot .rounded-3xl, #modalRoot .rounded-2xl, #modalRoot .rounded-xl {
+  border-radius: 14px;
+}
+#main article, #main .rounded-2xl, #main .rounded-3xl,
+#modalRoot .modal-panel {
+  box-shadow: none !important;
+}
+#main button, #modalRoot button {
+  transition: background-color .16s ease, border-color .16s ease, color .16s ease, transform .16s ease;
+  -webkit-user-select: none;
+  user-select: none;
+}
+#main button:not(.inline-control), #modalRoot button { min-height: 42px; }
+#main input, #main textarea, #modalRoot input, #modalRoot textarea {
+  font-size: 16px;
+  color: var(--text);
+  background: var(--surface);
+  border-color: var(--border);
+  border-radius: 10px;
+}
+#main input::placeholder, #main textarea::placeholder,
+#modalRoot input::placeholder, #modalRoot textarea::placeholder {
+  color: var(--muted);
+  opacity: .8;
+}
+#main [class*="bg-gradient"], #modalRoot [class*="bg-gradient"] {
+  background-image: none !important;
+}
+#main [class~="text-transparent"] {
+  color: var(--text) !important;
+  background: none !important;
+  -webkit-background-clip: initial !important;
+  background-clip: initial !important;
+}
+#main [class*="backdrop-blur"], #modalRoot [class*="backdrop-blur"] {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
 .safe-bottom { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
-.card-scene { perspective: 1200px; }
+.card-scene { width: 100%; perspective: 1200px; touch-action: pan-y; }
 .flashcard {
   position: relative;
   width: 100%;
-  min-height: 290px;
+  min-height: clamp(270px, 48svh, 390px);
   transform-style: preserve-3d;
   transition: transform .55s cubic-bezier(.2,.7,.2,1);
   cursor: pointer;
@@ -57,76 +214,71 @@ button { touch-action: manipulation; }
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 2rem;
-  border-radius: 1.5rem;
+  padding: clamp(1.25rem, 5vw, 2rem);
+  overflow-wrap: anywhere;
+  word-break: normal;
+  border-radius: 14px !important;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
+  box-shadow: none !important;
 }
 .card-back { transform: rotateY(180deg); }
 .progress-fill { transition: width .3s ease; }
 .modal-backdrop { animation: fadeIn .18s ease; }
 .modal-panel { animation: slideUp .22s ease; }
-@keyframes fadeIn { from {opacity:0} to {opacity:1} }
-@keyframes slideUp { from {transform:translateY(18px);opacity:0} to {transform:translateY(0);opacity:1} }
+@keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+@keyframes slideUp { from { transform: translateY(18px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
 .option-btn { transition: background .15s, border-color .15s, transform .15s; }
-.option-btn:active { transform: scale(.98); }
-input:focus, textarea:focus { outline: none; }
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-thumb { background: #a1a1aa; border-radius: 10px; }
-body { min-height: 100dvh; }
-</style>
-
-<style>
-/* Lingua 2.0 — minimal interface */
-:root { color-scheme: light; }
-:root.dark { color-scheme: dark; }
-body { background:#f8fafc !important; letter-spacing:-.01em; }
-.dark body { background:#0b1020 !important; }
-header { background:rgba(248,250,252,.92) !important; }
-.dark header { background:rgba(11,16,32,.92) !important; }
-#main { max-width:900px; }
-#main .rounded-3xl.bg-gradient-to-br { border-radius:22px !important; }
-#main article, #main .bg-white.dark\\:bg-slate-900 {
-  box-shadow:none !important;
+.option-btn:active, #supportBtn:active { transform: scale(.98); }
+#supportBtn {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
 }
-#main .rounded-2xl, #main .rounded-xl { border-radius:14px; }
-button { transition:background .16s ease, border-color .16s ease, transform .16s ease; }
-button:focus-visible, input:focus-visible, textarea:focus-visible {
-  outline:3px solid rgba(99,102,241,.28); outline-offset:2px;
-}
-.card-face { border-radius:20px !important; }
-.flashcard { min-height:310px; }
-@media (max-width:640px) {
-  #main { padding-top:20px; }
-  .flashcard { min-height:280px; }
-}
-</style>
-
-
-<style>
-/* Lingua mobile polish */
-html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
-body { overflow-x: hidden; }
-#app { min-height: 100svh; }
-header { padding-top: env(safe-area-inset-top); }
-header > div { min-height: 58px; }
-#main { width: 100%; padding-bottom: clamp(28px, 6vw, 56px); }
-#main button, #modalRoot button { -webkit-user-select: none; user-select: none; }
-#main button:not(.inline-control), #modalRoot button { min-height: 42px; }
-#main input, #main textarea, #modalRoot input, #modalRoot textarea { font-size: 16px; }
-#main article { min-width: 0; }
-.card-scene { width: 100%; touch-action: pan-y; }
-.flashcard { min-height: clamp(270px, 48svh, 390px); }
-.card-face { overflow-wrap: anywhere; word-break: normal; padding: clamp(1.25rem, 5vw, 2rem); }
-#supportBtn { min-height: 44px; padding: 11px 18px; border: 1px solid rgba(99,102,241,.28); border-radius: 999px; background: #eef2ff; color: #4338ca; font-size: 13px; font-weight: 700; }
-.dark #supportBtn { background: #24204b; color: #c7d2fe; border-color: #4338ca; }
-#supportBtn:active { transform: scale(.98); }
 .support-address { overflow-wrap: anywhere; word-break: break-word; user-select: text; }
 .support-qr { width: 188px; height: 188px; object-fit: contain; image-rendering: pixelated; }
+.ui-icon {
+  width: 18px;
+  height: 18px;
+  display: inline-block;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vertical-align: middle;
+}
+.ui-icon-lg { width: 25px; height: 25px; }
+.ui-icon-xl { width: 42px; height: 42px; color: var(--accent); }
+#themeBtn { font-size: 0 !important; color: var(--text); }
+#themeBtn::before {
+  content: "";
+  display: block;
+  width: 19px;
+  height: 19px;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M20.2 15.1A8.5 8.5 0 0 1 8.9 3.8 8.7 8.7 0 1 0 20.2 15.1Z'/%3E%3C/svg%3E") center/contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M20.2 15.1A8.5 8.5 0 0 1 8.9 3.8 8.7 8.7 0 1 0 20.2 15.1Z'/%3E%3C/svg%3E") center/contain no-repeat;
+}
+html.dark #themeBtn::before {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='4' fill='black'/%3E%3Cpath d='M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42' stroke='black' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='4' fill='black'/%3E%3Cpath d='M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42' stroke='black' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-thumb { background: #98a2b3; border-radius: 8px; }
 @media (max-width: 640px) {
   #main { padding-left: 14px; padding-right: 14px; padding-top: 18px; }
   header > div { padding-left: 14px; padding-right: 14px; }
-  #main .rounded-3xl { border-radius: 20px; }
   #main .p-5 { padding: 16px; }
   #main .p-6 { padding: 18px; }
   #main .grid.grid-cols-3 { gap: 7px; }
@@ -134,7 +286,7 @@ header > div { min-height: 58px; }
   #main .grid.grid-cols-3 > div .text-xl { font-size: 1.15rem; }
   #main .flex.items-center.gap-3 > button { min-width: 36px; min-height: 40px; }
   .flashcard { min-height: clamp(260px, 43svh, 340px); }
-  .card-face { border-radius: 18px !important; }
+  .card-face { border-radius: 14px !important; }
   footer { padding-top: 18px !important; }
 }
 @media (max-width: 360px) {
@@ -146,7 +298,6 @@ header > div { min-height: 58px; }
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
 </style>
-
 </head>
 <body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 transition-colors">
 
@@ -154,11 +305,11 @@ header > div { min-height: 58px; }
   <header class="sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg border-b border-slate-200 dark:border-slate-800">
     <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
       <button onclick="goHome()" class="flex items-center gap-2">
-        <span class="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-xl font-black">L</span>
-        <span class="text-xl font-bold tracking-tight">Lingua<span class="text-indigo-600">.</span></span>
+        <span class="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center text-xl font-black">L</span>
+        <span class="text-xl font-bold tracking-tight">Lingua<span class="text-blue-600">.</span></span>
       </button>
       <div class="flex items-center gap-2">
-        <button onclick="toggleTheme()" id="themeBtn" aria-label="Переключить тему" class="w-10 h-10 rounded-xl flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-lg">🌙</button>
+        <button onclick="toggleTheme()" id="themeBtn" aria-label="Переключить тему" class="w-10 h-10 rounded-xl flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-lg"></button>
       </div>
     </div>
   </header>
@@ -166,7 +317,7 @@ header > div { min-height: 58px; }
   <main id="main" class="flex-1 w-full max-w-5xl mx-auto px-4 py-6 md:py-10"></main>
 
   <footer class="text-center text-xs text-slate-400 px-4 py-5 safe-bottom flex flex-col items-center gap-3">
-    <button id="supportBtn" onclick="openSupportModal()">♡ Поддержать автора</button>
+    <button id="supportBtn" onclick="openSupportModal()"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 8.8c0 5.1-8.8 10-8.8 10S3.2 13.9 3.2 8.8A4.3 4.3 0 0 1 12 6.7a4.3 4.3 0 0 1 8.8 2.1Z"/></svg><span>Поддержать автора</span></button>
     <span>Lingua · Твои слова, твой прогресс</span>
   </footer>
 </div>
@@ -301,12 +452,12 @@ function renderHome() {
     <section class="mb-8">
       <div class="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 md:p-8 text-slate-900 dark:text-slate-100 overflow-hidden relative">
         <div class="relative z-10 max-w-xl">
-          <div class="text-indigo-600 dark:text-indigo-400 text-sm font-semibold mb-2">ТВОЙ ЛИЧНЫЙ ТРЕНАЖЁР</div>
+          <div class="text-blue-600 dark:text-blue-400 text-sm font-semibold mb-2">ТВОЙ ЛИЧНЫЙ ТРЕНАЖЁР</div>
           <h1 class="text-3xl md:text-4xl font-bold leading-tight mb-3">Изучай язык<br>в своем темпе.</h1>
           <p class="text-slate-600 dark:text-slate-300 text-sm md:text-base mb-5">Запоминай слова, проходи тесты и отслеживай свой прогресс.</p>
-          <button onclick="openCreateSet()" class="bg-indigo-600 text-white font-bold rounded-xl px-5 py-3 hover:bg-indigo-700 transition">+ Создать набор</button>
+          <button onclick="openCreateSet()" class="bg-blue-600 text-white font-bold rounded-xl px-5 py-3 hover:bg-blue-700 transition">+ Создать набор</button>
         </div>
-        <div class="absolute -right-8 -bottom-12 text-[180px] text-indigo-600 dark:text-indigo-400 opacity-10 select-none">A</div>
+        <div class="absolute -right-8 -bottom-12 text-[180px] text-blue-600 dark:text-blue-400 opacity-10 select-none">A</div>
       </div>
     </section>
 
@@ -349,16 +500,16 @@ function renderHome() {
                 <span>${p.learned} / ${p.total} выучено</span>
               </div>
               <div class="h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
-                <div class="h-full rounded-full bg-indigo-500 progress-fill" style="width:${p.percent}%"></div>
+                <div class="h-full rounded-full bg-blue-500 progress-fill" style="width:${p.percent}%"></div>
               </div>
-              <button onclick="openSet('${set.id}')" class="mt-4 w-full py-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 font-semibold text-sm hover:bg-indigo-100 dark:hover:bg-indigo-900 transition">Открыть набор →</button>
+              <button onclick="openSet('${set.id}')" class="mt-4 w-full py-3 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 font-semibold text-sm hover:bg-blue-100 dark:hover:bg-blue-900 transition">Открыть набор →</button>
             </article>`;
         }).join('') : `
           <div class="col-span-full text-center py-12 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700">
-            <div class="text-4xl mb-3">📚</div>
+            <div class="text-4xl mb-3"><svg class="ui-icon ui-icon-lg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21.5z"/><path d="M4 5.5v16M8 7h8M8 11h8"/></svg></div>
             <p class="font-semibold">Пока нет наборов</p>
             <p class="text-sm text-slate-500 mt-1">Создай свой первый набор слов.</p>
-            <button onclick="openCreateSet()" class="mt-4 bg-indigo-600 text-white rounded-xl px-5 py-3 font-semibold">Создать набор</button>
+            <button onclick="openCreateSet()" class="mt-4 bg-blue-600 text-white rounded-xl px-5 py-3 font-semibold">Создать набор</button>
           </div>`}
       </div>
     </section>
@@ -379,7 +530,7 @@ function renderSet() {
 
   main.innerHTML = `
     <div class="mb-5">
-      <button onclick="goHome()" class="text-sm text-slate-500 hover:text-indigo-600 mb-4">← Все наборы</button>
+      <button onclick="goHome()" class="text-sm text-slate-500 hover:text-blue-600 mb-4">← Все наборы</button>
       <div class="flex justify-between items-start gap-3">
         <div class="min-w-0">
           <h1 class="text-2xl md:text-3xl font-bold break-words">${escapeHTML(set.name)}</h1>
@@ -392,27 +543,27 @@ function renderSet() {
     <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 mb-6">
       <div class="flex justify-between items-center mb-2">
         <span class="text-sm font-semibold">Твой прогресс</span>
-        <span class="text-sm font-bold text-indigo-600">${p.percent}%</span>
+        <span class="text-sm font-bold text-blue-600">${p.percent}%</span>
       </div>
       <div class="h-2.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
-        <div class="h-full bg-indigo-500 rounded-full progress-fill" style="width:${p.percent}%"></div>
+        <div class="h-full bg-blue-500 rounded-full progress-fill" style="width:${p.percent}%"></div>
       </div>
       <p class="text-xs text-slate-500 mt-2">Выучено ${p.learned} из ${p.total} слов</p>
     </div>
 
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
-      <button onclick="startStudy('cards')" class="rounded-2xl bg-indigo-600 text-white p-5 text-left hover:bg-indigo-700 transition">
+      <button onclick="startStudy('cards')" class="rounded-2xl bg-blue-600 text-white p-5 text-left hover:bg-blue-700 transition">
         <div class="text-2xl mb-3">🃏</div>
         <div class="font-bold">Карточки</div>
-        <div class="text-indigo-200 text-xs mt-1">Запоминай слова</div>
+        <div class="text-blue-200 text-xs mt-1">Запоминай слова</div>
       </button>
-      <button onclick="startStudy('test')" class="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 text-left hover:border-indigo-400 transition">
-        <div class="text-2xl mb-3">🎯</div>
+      <button onclick="startStudy('test')" class="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 text-left hover:border-blue-400 transition">
+        <div class="text-2xl mb-3"><svg class="ui-icon ui-icon-lg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg></div>
         <div class="font-bold">Тест</div>
         <div class="text-slate-500 text-xs mt-1">Выбирай перевод</div>
       </button>
-      <button onclick="startStudy('write')" class="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 text-left hover:border-indigo-400 transition">
-        <div class="text-2xl mb-3">✍️</div>
+      <button onclick="startStudy('write')" class="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 text-left hover:border-blue-400 transition">
+        <div class="text-2xl mb-3"><svg class="ui-icon ui-icon-lg" viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 4.5-1 10.8-10.8a2.1 2.1 0 0 0-3-3L5.5 16z"/><path d="m14.8 6.7 3 3M4 20h16"/></svg></div>
         <div class="font-bold">Письмо</div>
         <div class="text-slate-500 text-xs mt-1">Вводи слово сам</div>
       </button>
@@ -421,7 +572,7 @@ function renderSet() {
     <section>
       <div class="flex items-center justify-between mb-3">
         <h2 class="text-lg font-bold">Слова в наборе</h2>
-        <button onclick="openWordEditor()" class="text-sm text-indigo-600 dark:text-indigo-400 font-semibold">+ Добавить</button>
+        <button onclick="openWordEditor()" class="text-sm text-blue-600 dark:text-blue-400 font-semibold">+ Добавить</button>
       </div>
       <div class="flex gap-2 flex-wrap mb-4">
         <button onclick="openBulkImport()" class="text-xs font-semibold px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800">Массовый импорт</button>
@@ -430,14 +581,14 @@ function renderSet() {
       <div class="space-y-2">
         ${set.words.length ? set.words.map(word => `
           <div class="flex items-center gap-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3">
-            <div class="w-9 h-9 flex-shrink-0 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 flex items-center justify-center font-bold">A</div>
+            <div class="w-9 h-9 flex-shrink-0 rounded-lg bg-blue-50 dark:bg-blue-950 text-blue-600 flex items-center justify-center font-bold">A</div>
             <div class="flex-1 min-w-0">
               <div class="font-semibold truncate">${escapeHTML(word.front)}</div>
               <div class="text-sm text-slate-500 truncate">${escapeHTML(word.back)}</div>
             </div>
             ${set.learned?.includes(word.id) ? '<span class="text-emerald-500 text-xs">✓</span>' : ''}
-            <button onclick="speak('${escapeJS(word.front)}')" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Озвучить">🔊</button>
-            <button onclick="editWord('${word.id}')" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Изменить">✏️</button>
+            <button onclick="speak('${escapeJS(word.front)}')" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Озвучить"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9a5 5 0 0 1 0 6M18.5 6.5a8.5 8.5 0 0 1 0 11"/></svg></button>
+            <button onclick="editWord('${word.id}')" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Изменить"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 4.5-1 10.8-10.8a2.1 2.1 0 0 0-3-3L5.5 16z"/><path d="m14.8 6.7 3 3"/></svg></button>
             <button onclick="deleteWord('${word.id}')" class="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-red-500" aria-label="Удалить">×</button>
           </div>`).join('') : '<p class="text-sm text-slate-500 text-center py-8">В этом наборе пока нет слов.</p>'}
       </div>
@@ -460,7 +611,7 @@ function openCreateSet() {
         <label class="block text-sm font-semibold mb-2">Описание</label>
         <textarea id="setDescription" rows="2" maxlength="250" placeholder="Краткое описание набора" class="w-full rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-3 resize-none"></textarea>
       </div>
-      <button class="w-full rounded-xl bg-indigo-600 text-white py-3 font-bold">Создать</button>
+      <button class="w-full rounded-xl bg-blue-600 text-white py-3 font-bold">Создать</button>
     </form>
   `);
   document.getElementById('setForm').onsubmit = event => {
@@ -493,7 +644,7 @@ function editSet(id) {
         <label class="block text-sm font-semibold mb-2">Описание</label>
         <textarea id="editSetDescription" rows="3" maxlength="250" class="w-full rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-3 resize-none">${escapeHTML(set.description || '')}</textarea>
       </div>
-      <button class="w-full rounded-xl bg-indigo-600 text-white py-3 font-bold">Сохранить изменения</button>
+      <button class="w-full rounded-xl bg-blue-600 text-white py-3 font-bold">Сохранить изменения</button>
     </form>
   `);
   document.getElementById('editSetForm').onsubmit = event => {
@@ -511,10 +662,10 @@ function openSetMenu(id) {
   if (!set) return;
   showModal('Управление набором', `
     <div class="space-y-2">
-      <button onclick="closeModal();editSet('${id}')" class="w-full text-left p-4 rounded-xl bg-slate-100 dark:bg-slate-800 font-semibold">✏️ Редактировать набор</button>
-      <button onclick="closeModal();openBulkImport('${id}')" class="w-full text-left p-4 rounded-xl bg-slate-100 dark:bg-slate-800 font-semibold">📥 Импортировать слова</button>
-      <button onclick="closeModal();exportSet('${id}')" class="w-full text-left p-4 rounded-xl bg-slate-100 dark:bg-slate-800 font-semibold">📤 Экспортировать набор</button>
-      <button onclick="deleteSet('${id}')" class="w-full text-left p-4 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-600 font-semibold">🗑️ Удалить набор</button>
+      <button onclick="closeModal();editSet('${id}')" class="w-full text-left p-4 rounded-xl bg-slate-100 dark:bg-slate-800 font-semibold"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 4.5-1 10.8-10.8a2.1 2.1 0 0 0-3-3L5.5 16z"/><path d="m14.8 6.7 3 3"/></svg> Редактировать набор</button>
+      <button onclick="closeModal();openBulkImport('${id}')" class="w-full text-left p-4 rounded-xl bg-slate-100 dark:bg-slate-800 font-semibold"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4z"/><path d="M12 7v9m-4-4 4 4 4-4"/></svg> Импортировать слова</button>
+      <button onclick="closeModal();exportSet('${id}')" class="w-full text-left p-4 rounded-xl bg-slate-100 dark:bg-slate-800 font-semibold"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4z"/><path d="M12 17V8m-4 4 4-4 4 4"/></svg> Экспортировать набор</button>
+      <button onclick="deleteSet('${id}')" class="w-full text-left p-4 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-600 font-semibold"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5"/></svg> Удалить набор</button>
     </div>
   `);
 }
@@ -550,7 +701,7 @@ function openWordEditor(wordId = null) {
         <label class="block text-sm font-semibold mb-2">Перевод примера (необязательно)</label>
         <textarea id="wordExampleTranslation" rows="2" maxlength="300" placeholder="Я ем яблоко каждый день." class="w-full rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-3 resize-none">${escapeHTML(word?.exampleTranslation || '')}</textarea>
       </div>
-      <button class="w-full rounded-xl bg-indigo-600 text-white py-3 font-bold">Сохранить слово</button>
+      <button class="w-full rounded-xl bg-blue-600 text-white py-3 font-bold">Сохранить слово</button>
     </form>
   `);
   document.getElementById('wordForm').onsubmit = event => {
@@ -592,8 +743,8 @@ function openBulkImport(id = selectedSetId) {
   if (!set) return;
   showModal('Импорт карточек', `
     <div class="space-y-3">
-      <div class="rounded-xl bg-indigo-50 dark:bg-indigo-950/30 p-3 text-sm">
-        <div class="font-semibold text-indigo-700 dark:text-indigo-300 mb-1">Импорт из Quizlet</div>
+      <div class="rounded-xl bg-blue-50 dark:bg-blue-950/30 p-3 text-sm">
+        <div class="font-semibold text-blue-700 dark:text-blue-300 mb-1">Импорт из Quizlet</div>
         <ol class="list-decimal pl-5 space-y-1 text-slate-600 dark:text-slate-300">
           <li>В Quizlet открой набор → меню <b>⋯</b> → <b>Экспорт</b>.</li>
           <li>Выбери между термином и определением <b>табуляцию</b>, а между карточками — <b>новую строку</b>.</li>
@@ -607,7 +758,7 @@ function openBulkImport(id = selectedSetId) {
         <textarea id="bulkText" required rows="9" placeholder="Вставь экспорт Quizlet сюда…&#10;abandon[TAB]покидать&#10;achieve[TAB]достигать"
           class="w-full rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-3 resize-y text-sm"></textarea>
         <div id="bulkImportStatus" class="text-xs text-slate-500">Поддерживаются табуляция Quizlet, CSV с точкой с запятой и старый формат «слово - перевод».</div>
-        <button class="w-full rounded-xl bg-indigo-600 text-white py-3 font-bold">Импортировать карточки</button>
+        <button class="w-full rounded-xl bg-blue-600 text-white py-3 font-bold">Импортировать карточки</button>
       </form>
     </div>
   `);
@@ -827,12 +978,12 @@ function renderCards() {
   document.getElementById('main').innerHTML = `
     <div class="max-w-xl mx-auto">
       <div class="flex items-center justify-between mb-6">
-        <button onclick="endStudy()" class="text-sm text-slate-500 hover:text-indigo-600">← Выйти</button>
+        <button onclick="endStudy()" class="text-sm text-slate-500 hover:text-blue-600">← Выйти</button>
         <span class="text-sm font-semibold text-slate-500">Карточки</span>
         <span class="text-sm font-bold">${currentIndex + 1} / ${studyWords.length}</span>
       </div>
       <div class="h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden mb-8">
-        <div class="h-full rounded-full bg-indigo-500 progress-fill" style="width:${(currentIndex + 1) / studyWords.length * 100}%"></div>
+        <div class="h-full rounded-full bg-blue-500 progress-fill" style="width:${(currentIndex + 1) / studyWords.length * 100}%"></div>
       </div>
       <div class="text-center mb-4">
         <p class="text-sm text-slate-500">Нажми на карточку, чтобы увидеть перевод</p>
@@ -842,14 +993,14 @@ function renderCards() {
           <div class="card-face bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm">
             <span class="absolute top-5 left-5 text-xs font-semibold uppercase tracking-wider text-slate-400">English</span>
             <div class="text-3xl md:text-4xl font-bold text-center break-words">${escapeHTML(word.front)}</div>
-            <button onclick="event.stopPropagation();speak('${escapeJS(word.front)}')" class="mt-7 rounded-full w-12 h-12 bg-indigo-50 dark:bg-indigo-950 text-indigo-600 text-xl">🔊</button>
+            <button onclick="event.stopPropagation();speak('${escapeJS(word.front)}')" class="mt-7 rounded-full w-12 h-12 bg-blue-50 dark:bg-blue-950 text-blue-600 text-xl"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9a5 5 0 0 1 0 6M18.5 6.5a8.5 8.5 0 0 1 0 11"/></svg></button>
             <span class="absolute bottom-5 text-xs text-slate-400">Нажми, чтобы перевернуть</span>
           </div>
-          <div class="card-face card-back bg-indigo-600 text-white shadow-sm">
-            <span class="absolute top-5 left-5 text-xs font-semibold uppercase tracking-wider text-indigo-200">Перевод</span>
+          <div class="card-face card-back bg-blue-600 text-white shadow-sm">
+            <span class="absolute top-5 left-5 text-xs font-semibold uppercase tracking-wider text-blue-200">Перевод</span>
             <div class="text-3xl md:text-4xl font-bold text-center break-words">${escapeHTML(word.back)}</div>
-            ${word.example ? `<p class="text-sm text-indigo-100 text-center mt-5">${escapeHTML(word.example)}</p>` : ''}
-            <span class="absolute bottom-5 text-xs text-indigo-200">Нажми, чтобы вернуться</span>
+            ${word.example ? `<p class="text-sm text-blue-100 text-center mt-5">${escapeHTML(word.example)}</p>` : ''}
+            <span class="absolute bottom-5 text-xs text-blue-200">Нажми, чтобы вернуться</span>
           </div>
         </div>
       </div>
@@ -862,7 +1013,7 @@ function renderCards() {
       </div>
       <div class="flex justify-between mt-5">
         <button onclick="previousCard()" ${currentIndex === 0 ? 'disabled' : ''} class="text-sm text-slate-500 disabled:opacity-30">← Назад</button>
-        <button onclick="nextCard()" class="text-sm text-indigo-600 dark:text-indigo-400 font-semibold">Пропустить →</button>
+        <button onclick="nextCard()" class="text-sm text-blue-600 dark:text-blue-400 font-semibold">Пропустить →</button>
       </div>
     </div>
   `;
@@ -925,15 +1076,15 @@ function showStudyComplete(title, message) {
   const p = set ? getProgress(set) : { learned: 0, total: 0, percent: 0 };
   document.getElementById('main').innerHTML = `
     <div class="max-w-md mx-auto text-center py-12">
-      <div class="text-6xl mb-5">🎉</div>
+      <div class="text-6xl mb-5"><svg class="ui-icon ui-icon-xl" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 19 6-14 3 8 5-2-14 8z"/><path d="m17 4 1-2m3 6 2-1M5 4 4 2M2 10H1"/></svg></div>
       <h1 class="text-3xl font-bold mb-3">${escapeHTML(title)}</h1>
       <p class="text-slate-500 mb-8">${escapeHTML(message)}</p>
       <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 mb-6">
-        <div class="text-3xl font-bold text-indigo-600">${p.percent}%</div>
+        <div class="text-3xl font-bold text-blue-600">${p.percent}%</div>
         <div class="text-sm text-slate-500 mt-1">Общий прогресс набора</div>
         <div class="text-sm mt-4">${p.learned} из ${p.total} слов выучено</div>
       </div>
-      <button onclick="renderSet()" class="w-full rounded-xl bg-indigo-600 text-white py-3 font-bold">Вернуться к набору</button>
+      <button onclick="renderSet()" class="w-full rounded-xl bg-blue-600 text-white py-3 font-bold">Вернуться к набору</button>
     </div>
   `;
 }
@@ -962,12 +1113,12 @@ function renderTest() {
         <span class="text-sm font-bold">${currentIndex + 1} / ${studyWords.length}</span>
       </div>
       <div class="h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden mb-8">
-        <div class="h-full bg-indigo-500 rounded-full" style="width:${currentIndex / studyWords.length * 100}%"></div>
+        <div class="h-full bg-blue-500 rounded-full" style="width:${currentIndex / studyWords.length * 100}%"></div>
       </div>
       <div class="text-center mb-8">
         <p class="text-sm text-slate-500 mb-4">Выбери правильный перевод</p>
         <h1 class="text-3xl font-bold mb-3">${escapeHTML(question.word.front)}</h1>
-        <button onclick="speak('${escapeJS(question.word.front)}')" class="text-indigo-600 text-sm font-semibold">🔊 Прослушать</button>
+        <button onclick="speak('${escapeJS(question.word.front)}')" class="text-blue-600 text-sm font-semibold"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9a5 5 0 0 1 0 6M18.5 6.5a8.5 8.5 0 0 1 0 11"/></svg> Прослушать</button>
       </div>
       <div class="space-y-3" id="testOptions">
         ${question.options.map(option => `
@@ -1004,7 +1155,7 @@ function answerTest(id) {
       <div class="font-bold">${correct ? '✓ Правильно!' : '✗ Неправильно'}</div>
       <div class="text-sm mt-1">${correct ? 'Отличная работа.' : 'Правильный ответ: ' + escapeHTML(testQuestion.word.back)}</div>
     </div>
-    <button onclick="currentIndex++;nextTestQuestion()" class="w-full mt-3 rounded-xl bg-indigo-600 text-white py-3 font-bold">Следующий вопрос →</button>
+    <button onclick="currentIndex++;nextTestQuestion()" class="w-full mt-3 rounded-xl bg-blue-600 text-white py-3 font-bold">Следующий вопрос →</button>
   `;
 }
 
@@ -1012,15 +1163,15 @@ function showQuizResult(title, score, total) {
   const percent = total ? Math.round(score / total * 100) : 0;
   document.getElementById('main').innerHTML = `
     <div class="max-w-md mx-auto text-center py-12">
-      <div class="text-6xl mb-5">${percent >= 80 ? '🏆' : '💪'}</div>
+      <div class="text-6xl mb-5">${percent >= 80 ? '<svg class="ui-icon ui-icon-xl" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8v5a4 4 0 0 1-8 0zM8 6H4v2a4 4 0 0 0 4 4m8-6h4v2a4 4 0 0 1-4 4m-4 1v4m-4 3h8m-7-3h6"/></svg>' : '<svg class="ui-icon ui-icon-xl" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9v6m-3-4v4m3-2h3l3-3 3 3h3m0-4v6m3-4v4"/></svg>'}</div>
       <h1 class="text-3xl font-bold mb-3">${title}</h1>
       <p class="text-slate-500 mb-8">Результаты твоей тренировки</p>
       <div class="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-7 mb-6">
-        <div class="text-5xl font-black text-indigo-600">${percent}%</div>
+        <div class="text-5xl font-black text-blue-600">${percent}%</div>
         <div class="text-slate-500 mt-2">Правильных ответов</div>
         <div class="mt-5 font-bold">${score} из ${total}</div>
       </div>
-      <button onclick="renderSet()" class="w-full rounded-xl bg-indigo-600 text-white py-3 font-bold">Вернуться к набору</button>
+      <button onclick="renderSet()" class="w-full rounded-xl bg-blue-600 text-white py-3 font-bold">Вернуться к набору</button>
     </div>
   `;
 }
@@ -1043,7 +1194,7 @@ function renderWrite() {
         <span class="text-sm font-bold">${currentIndex + 1} / ${studyWords.length}</span>
       </div>
       <div class="h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden mb-8">
-        <div class="h-full bg-indigo-500 rounded-full" style="width:${currentIndex / studyWords.length * 100}%"></div>
+        <div class="h-full bg-blue-500 rounded-full" style="width:${currentIndex / studyWords.length * 100}%"></div>
       </div>
       <div class="text-center mb-8">
         <p class="text-sm text-slate-500 mb-4">Напиши английское слово по переводу</p>
@@ -1051,7 +1202,7 @@ function renderWrite() {
       </div>
       <form id="writeForm" class="space-y-4">
         <input id="writeInput" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Введи слово на английском..." class="w-full text-center text-xl rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-4">
-        <button class="w-full rounded-xl bg-indigo-600 text-white py-4 font-bold">Проверить ответ</button>
+        <button class="w-full rounded-xl bg-blue-600 text-white py-4 font-bold">Проверить ответ</button>
       </form>
       <div id="writeFeedback" class="mt-4"></div>
       <div class="text-center mt-5 text-sm text-slate-500">Правильных ответов: ${writeScore} / ${writeTotal}</div>
@@ -1082,7 +1233,7 @@ function checkWrite() {
       <div class="font-bold">${correct ? '✓ Верно!' : '✗ Есть ошибка'}</div>
       <div class="text-sm mt-1">${correct ? 'Отлично, ты написал правильно.' : 'Правильное написание: ' + escapeHTML(writeQuestion.front)}</div>
     </div>
-    <button onclick="currentIndex++;nextWriteQuestion()" class="w-full mt-3 rounded-xl bg-indigo-600 text-white py-3 font-bold">Следующее слово →</button>
+    <button onclick="currentIndex++;nextWriteQuestion()" class="w-full mt-3 rounded-xl bg-blue-600 text-white py-3 font-bold">Следующее слово →</button>
   `;
 }
 
@@ -1123,7 +1274,7 @@ function toggleTheme() {
 function updateThemeButton() {
   const button = document.getElementById('themeBtn');
   if (!button) return;
-  button.textContent = document.documentElement.classList.contains('dark') ? '☀️' : '🌙';
+  button.textContent = '';
 }
 
 function initializeTheme() {
@@ -1225,7 +1376,7 @@ function renderSet() {
   const main = document.getElementById('main');
   main.innerHTML = `
     <div class="mb-7">
-      <button onclick="goHome()" class="text-sm text-slate-500 hover:text-indigo-600 mb-4">← Все наборы</button>
+      <button onclick="goHome()" class="text-sm text-slate-500 hover:text-blue-600 mb-4">← Все наборы</button>
       <div class="flex justify-between items-start gap-3">
         <div class="min-w-0">
           <h1 class="text-2xl md:text-3xl font-bold break-words">${escapeHTML(set.name)}</h1>
@@ -1236,19 +1387,19 @@ function renderSet() {
     </div>
     <div class="grid grid-cols-3 gap-2 mb-6">
       <div class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3"><div class="text-xl font-bold">${set.words.length}</div><div class="text-xs text-slate-500">Всего слов</div></div>
-      <div class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3"><div class="text-xl font-bold text-indigo-600">${due}</div><div class="text-xs text-slate-500">К повторению</div></div>
+      <div class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3"><div class="text-xl font-bold text-blue-600">${due}</div><div class="text-xs text-slate-500">К повторению</div></div>
       <div class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3"><div class="text-xl font-bold text-rose-500">${mistakes}</div><div class="text-xs text-slate-500">С ошибками</div></div>
     </div>
     <div class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 mb-6">
-      <div class="flex justify-between items-center mb-2"><span class="text-sm font-semibold">Выучено</span><span class="text-sm font-bold text-indigo-600">${p.percent}%</span></div>
-      <div class="h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden"><div class="h-full bg-indigo-500 rounded-full" style="width:${p.percent}%"></div></div>
+      <div class="flex justify-between items-center mb-2"><span class="text-sm font-semibold">Выучено</span><span class="text-sm font-bold text-blue-600">${p.percent}%</span></div>
+      <div class="h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden"><div class="h-full bg-blue-500 rounded-full" style="width:${p.percent}%"></div></div>
     </div>
     <section class="mb-8">
       <h2 class="text-lg font-bold mb-3">Учиться</h2>
       <div class="grid grid-cols-2 gap-3">
-        <button onclick="startStudy('review')" class="col-span-2 rounded-xl bg-indigo-50 dark:bg-indigo-600 border border-indigo-200 dark:border-indigo-500 text-slate-900 dark:text-white p-4 text-left transition-colors">
+        <button onclick="startStudy('review')" class="col-span-2 rounded-xl bg-blue-50 dark:bg-blue-600 border border-blue-200 dark:border-blue-500 text-slate-900 dark:text-white p-4 text-left transition-colors">
           <div class="flex justify-between items-center"><span class="font-semibold">Повторить сегодня</span><span class="text-sm opacity-80">${due} слов →</span></div>
-          <p class="text-xs text-indigo-700 dark:text-indigo-100 mt-1">Интервальное повторение</p>
+          <p class="text-xs text-blue-700 dark:text-blue-100 mt-1">Интервальное повторение</p>
         </button>
         <button onclick="startStudy('cards')" class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 text-left"><div class="font-semibold">Карточки</div><div class="text-xs text-slate-500 mt-1">Все слова</div></button>
         <button onclick="startStudy('mistakes')" class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 text-left"><div class="font-semibold">Мои ошибки</div><div class="text-xs text-slate-500 mt-1">${mistakes} слов</div></button>
@@ -1257,7 +1408,7 @@ function renderSet() {
       </div>
     </section>
     <section>
-      <div class="flex items-center justify-between mb-3"><h2 class="text-lg font-bold">Слова</h2><button onclick="openWordEditor()" class="text-sm text-indigo-600 dark:text-indigo-400 font-semibold">+ Добавить</button></div>
+      <div class="flex items-center justify-between mb-3"><h2 class="text-lg font-bold">Слова</h2><button onclick="openWordEditor()" class="text-sm text-blue-600 dark:text-blue-400 font-semibold">+ Добавить</button></div>
       <div class="flex gap-2 flex-wrap mb-4">
         <button onclick="openBulkImport()" class="text-xs font-semibold px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800">Массовый импорт</button>
         <button onclick="exportSet('${set.id}')" class="text-xs font-semibold px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800">Экспорт набора</button>
@@ -1270,7 +1421,7 @@ function renderSet() {
             <div class="flex-1 min-w-0"><div class="font-semibold truncate">${escapeHTML(word.front)}</div><div class="text-sm text-slate-500 truncate">${escapeHTML(word.back)}</div>${word.example ? `<div class="text-xs text-slate-400 mt-1 truncate">${escapeHTML(word.example)}</div>` : ''}</div>
             ${word.mistakeCount ? `<span class="text-xs text-rose-500" title="Ошибок: ${word.mistakeCount}">${word.mistakeCount}×</span>` : ''}
             <button onclick="speak('${escapeJS(word.front)}')" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Озвучить">⌁</button>
-            <button onclick="editWord('${word.id}')" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Изменить">✎</button>
+            <button onclick="editWord('${word.id}')" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Изменить"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 4.5-1L19 8.5a2.1 2.1 0 0 0-3-3L5.5 16z"/><path d="m14.8 6.7 3 3"/></svg></button>
             <button onclick="deleteWord('${word.id}')" class="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-red-500" aria-label="Удалить">×</button>
           </div>`;
         }).join('') : '<p class="text-sm text-slate-500 text-center py-8">В этом наборе пока нет слов.</p>'}
@@ -1290,7 +1441,7 @@ function renderCards() {
         <span class="text-sm font-semibold text-slate-500">${label}</span>
         <span class="text-sm font-bold">${currentIndex + 1} / ${studyWords.length}</span>
       </div>
-      <div class="h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden mb-8"><div class="h-full rounded-full bg-indigo-500 progress-fill" style="width:${(currentIndex + 1) / studyWords.length * 100}%"></div></div>
+      <div class="h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden mb-8"><div class="h-full rounded-full bg-blue-500 progress-fill" style="width:${(currentIndex + 1) / studyWords.length * 100}%"></div></div>
       <p class="text-center text-sm text-slate-500 mb-4">Вспомни значение и переверни карточку</p>
       <div class="card-scene mb-6" id="cardScene">
         <div class="flashcard ${isFlipped ? 'flipped' : ''}" id="flashcard" onclick="flipCard()">
@@ -1300,17 +1451,17 @@ function renderCards() {
             <button onclick="event.stopPropagation();speak('${escapeJS(word.front)}')" class="mt-7 rounded-full w-11 h-11 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-200">⌁</button>
             <span class="absolute bottom-5 text-xs text-slate-400">Нажми, чтобы увидеть перевод</span>
           </div>
-          <div class="card-face card-back bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-900 text-slate-900 dark:text-white">
+          <div class="card-face card-back bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-900 text-slate-900 dark:text-white">
             <span class="absolute top-5 left-5 text-xs uppercase tracking-wider text-slate-400">Перевод</span>
             <div class="text-2xl md:text-3xl font-bold text-center break-words">${escapeHTML(word.back)}</div>
-            ${word.example ? `<div class="mt-5 text-center max-w-full"><p class="text-sm font-medium text-indigo-700 dark:text-indigo-300">${escapeHTML(word.example)}</p>${word.exampleTranslation ? `<p class="text-xs text-slate-500 mt-1">${escapeHTML(word.exampleTranslation)}</p>` : ''}<button onclick="event.stopPropagation();speak('${escapeJS(word.example)}')" class="mt-2 text-xs text-slate-500">Прослушать пример</button></div>` : '<p class="text-xs text-slate-400 mt-4">Добавь пример в редакторе слова</p>'}
+            ${word.example ? `<div class="mt-5 text-center max-w-full"><p class="text-sm font-medium text-blue-700 dark:text-blue-300">${escapeHTML(word.example)}</p>${word.exampleTranslation ? `<p class="text-xs text-slate-500 mt-1">${escapeHTML(word.exampleTranslation)}</p>` : ''}<button onclick="event.stopPropagation();speak('${escapeJS(word.example)}')" class="mt-2 text-xs text-slate-500">Прослушать пример</button></div>` : '<p class="text-xs text-slate-400 mt-4">Добавь пример в редакторе слова</p>'}
             <span class="absolute bottom-5 text-xs text-slate-400">Оцени, насколько легко вспомнил</span>
           </div>
         </div>
       </div>
       <div class="grid grid-cols-2 gap-3">
         <button onclick="cardAnswer(false)" class="rounded-xl border border-rose-200 dark:border-rose-900 bg-white dark:bg-slate-900 text-rose-600 py-4 font-semibold">Не вспомнил</button>
-        <button onclick="cardAnswer(true)" class="rounded-xl bg-slate-900 dark:bg-indigo-600 text-white py-4 font-semibold">Вспомнил</button>
+        <button onclick="cardAnswer(true)" class="rounded-xl bg-slate-900 dark:bg-blue-600 text-white py-4 font-semibold">Вспомнил</button>
       </div>
       <div class="flex justify-between mt-5"><button onclick="previousCard()" ${currentIndex === 0 ? 'disabled' : ''} class="text-sm text-slate-500 disabled:opacity-30">← Назад</button><button onclick="nextCard()" class="text-sm text-slate-500">Пропустить →</button></div>
     </div>`;
@@ -1341,7 +1492,7 @@ function answerTest(id) {
     if (optionId === testQuestion.word.id) button.classList.add('border-emerald-500','bg-emerald-50','dark:bg-emerald-950/30');
     else if (optionId === id) button.classList.add('border-rose-500','bg-rose-50','dark:bg-rose-950/30');
   });
-  document.getElementById('testFeedback').innerHTML = `<div class="rounded-xl p-4 ${correct ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300' : 'bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300'}"><div class="font-bold">${correct ? 'Верно' : 'Неправильно'}</div><div class="text-sm mt-1">${correct ? 'Хорошая работа.' : 'Правильный ответ: ' + escapeHTML(testQuestion.word.back)}</div>${testQuestion.word.example ? `<p class="text-sm mt-2">${escapeHTML(testQuestion.word.example)}</p>${testQuestion.word.exampleTranslation ? `<p class="text-xs mt-1 opacity-75">${escapeHTML(testQuestion.word.exampleTranslation)}</p>` : ''}` : ''}</div><button onclick="currentIndex++;nextTestQuestion()" class="w-full mt-3 rounded-xl bg-slate-900 dark:bg-indigo-600 text-white py-3 font-semibold">Далее</button>`;
+  document.getElementById('testFeedback').innerHTML = `<div class="rounded-xl p-4 ${correct ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300' : 'bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300'}"><div class="font-bold">${correct ? 'Верно' : 'Неправильно'}</div><div class="text-sm mt-1">${correct ? 'Хорошая работа.' : 'Правильный ответ: ' + escapeHTML(testQuestion.word.back)}</div>${testQuestion.word.example ? `<p class="text-sm mt-2">${escapeHTML(testQuestion.word.example)}</p>${testQuestion.word.exampleTranslation ? `<p class="text-xs mt-1 opacity-75">${escapeHTML(testQuestion.word.exampleTranslation)}</p>` : ''}` : ''}</div><button onclick="currentIndex++;nextTestQuestion()" class="w-full mt-3 rounded-xl bg-slate-900 dark:bg-blue-600 text-white py-3 font-semibold">Далее</button>`;
 }
 function checkWrite() {
   const input = document.getElementById('writeInput');
@@ -1351,7 +1502,7 @@ function checkWrite() {
   writeTotal++; if (correct) writeScore++;
   reviewWord(writeQuestion, correct ? 2 : 0);
   input.disabled = true; document.querySelector('#writeForm button').disabled = true;
-  document.getElementById('writeFeedback').innerHTML = `<div class="rounded-xl p-4 ${correct ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300' : 'bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300'}"><div class="font-bold">${correct ? 'Верно' : 'Есть ошибка'}</div><div class="text-sm mt-1">${correct ? 'Отлично!' : 'Правильное написание: ' + escapeHTML(writeQuestion.front)}</div>${writeQuestion.example ? `<p class="text-sm mt-2">${escapeHTML(writeQuestion.example)}</p>${writeQuestion.exampleTranslation ? `<p class="text-xs mt-1 opacity-75">${escapeHTML(writeQuestion.exampleTranslation)}</p>` : ''}` : ''}</div><button onclick="currentIndex++;nextWriteQuestion()" class="w-full mt-3 rounded-xl bg-slate-900 dark:bg-indigo-600 text-white py-3 font-semibold">Следующее слово</button>`;
+  document.getElementById('writeFeedback').innerHTML = `<div class="rounded-xl p-4 ${correct ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300' : 'bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300'}"><div class="font-bold">${correct ? 'Верно' : 'Есть ошибка'}</div><div class="text-sm mt-1">${correct ? 'Отлично!' : 'Правильное написание: ' + escapeHTML(writeQuestion.front)}</div>${writeQuestion.example ? `<p class="text-sm mt-2">${escapeHTML(writeQuestion.example)}</p>${writeQuestion.exampleTranslation ? `<p class="text-xs mt-1 opacity-75">${escapeHTML(writeQuestion.exampleTranslation)}</p>` : ''}` : ''}</div><button onclick="currentIndex++;nextWriteQuestion()" class="w-full mt-3 rounded-xl bg-slate-900 dark:bg-blue-600 text-white py-3 font-semibold">Следующее слово</button>`;
 }
 function addImportedSet(source) {
   if (!source || !Array.isArray(source.words)) throw new Error('Неверный набор');
@@ -1372,7 +1523,7 @@ const SUPPORT_QR_DATA = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAUgAAAFIC
 function openSupportModal() {
   showModal('Поддержать автора', `
     <div class="text-center">
-      <div class="mx-auto mb-3 w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950 flex items-center justify-center text-2xl">♡</div>
+      <div class="mx-auto mb-3 w-12 h-12 rounded-xl bg-blue-50 dark:bg-blue-950 flex items-center justify-center"><svg class="ui-icon ui-icon-lg" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 8.8c0 5.1-8.8 10-8.8 10S3.2 13.9 3.2 8.8A4.3 4.3 0 0 1 12 6.7a4.3 4.3 0 0 1 8.8 2.1Z"/></svg></div>
       <p class="text-sm text-slate-600 dark:text-slate-300 mb-5">Если Lingua помогает тебе учить язык, ты можешь поддержать развитие приложения.</p>
       <div class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/70 p-4 mb-4">
         <div class="font-bold text-lg">USDT</div>
@@ -1380,7 +1531,7 @@ function openSupportModal() {
         <img class="support-qr mx-auto my-4 rounded-xl" src="${SUPPORT_QR_DATA}" alt="QR-код адреса кошелька TON" width="188" height="188">
         <div class="text-xs text-slate-500 mb-2">Адрес кошелька</div>
         <div class="support-address text-sm font-mono bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3">${SUPPORT_WALLET}</div>
-        <button id="copySupportBtn" onclick="copySupportAddress()" class="w-full mt-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white py-3 font-bold">Скопировать адрес</button>
+        <button id="copySupportBtn" onclick="copySupportAddress()" class="w-full mt-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white py-3 font-bold">Скопировать адрес</button>
       </div>
       <p class="text-xs text-slate-500 leading-relaxed">Отправляй именно USDT в сети TON. Перед переводом проверь выбранную сеть и адрес в своём кошельке.</p>
     </div>
