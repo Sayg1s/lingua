@@ -78,6 +78,7 @@ body { min-height: 100dvh; }
 <style>
 /* Lingua 2.0 — minimal interface */
 :root { color-scheme: light; }
+:root.dark { color-scheme: dark; }
 body { background:#f8fafc !important; letter-spacing:-.01em; }
 .dark body { background:#0b1020 !important; }
 header { background:rgba(248,250,252,.92) !important; }
@@ -1103,9 +1104,16 @@ function closeModal() {
   document.getElementById('modalRoot').innerHTML = '';
 }
 
+function applySystemThemeColor(isDark) {
+  const color = isDark ? '#0b1020' : '#f8fafc';
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', color);
+}
+
 function toggleTheme() {
   const isDark = document.documentElement.classList.toggle('dark');
   localStorage.setItem(THEME_KEY, isDark ? 'dark' : 'light');
+  applySystemThemeColor(isDark);
   updateThemeButton();
 }
 
@@ -1121,6 +1129,7 @@ function initializeTheme() {
     theme = localStorage.getItem(THEME_KEY) || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   } catch (error) {}
   document.documentElement.classList.toggle('dark', theme === 'dark');
+  applySystemThemeColor(theme === 'dark');
   updateThemeButton();
 }
 
