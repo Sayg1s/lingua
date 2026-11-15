@@ -254,8 +254,39 @@ function getProgress(set) {
   };
 }
 
+function pushAppView(view) {
+  history.pushState({
+    linguaApp: true,
+    linguaView: view,
+    setId: selectedSetId,
+    mode: currentMode
+  }, '');
+}
+
+function restoreAppView(state) {
+  if (!state || !state.linguaApp) return;
+  const modalRoot = document.getElementById('modalRoot');
+  if (modalRoot) modalRoot.innerHTML = '';
+  selectedSetId = state.setId || null;
+  currentMode = state.mode || 'cards';
+
+  if (state.linguaView === 'home') renderHome();
+  else if (state.linguaView === 'set') renderSet();
+  else if (state.linguaView === 'study') {
+    if (currentMode === 'cards' || currentMode === 'review' || currentMode === 'mistakes') renderCards();
+    else if (currentMode === 'test') renderTest();
+    else if (currentMode === 'write') renderWrite();
+    else renderSet();
+  }
+}
+
 function goHome() {
   selectedSetId = null;
+  if (history.state?.linguaApp && history.state.linguaView === 'home') {
+    renderHome();
+    return;
+  }
+  pushAppView('home');
   renderHome();
 }
 
@@ -334,6 +365,7 @@ function renderHome() {
 
 function openSet(id) {
   selectedSetId = id;
+  pushAppView('set');
   renderSet();
 }
 
@@ -763,7 +795,12 @@ function startStudy(mode) {
 }
 
 function endStudy() {
-  renderSet();
+  if (history.state?.linguaApp && history.state.linguaView === 'study') {
+    history.back();
+  } else {
+    pushAppView('set');
+    renderSet();
+  }
 }
 
 function speak(text) {
@@ -997,8 +1034,7 @@ function nextWriteQuestion() {
 
 function renderWrite() {
   const word = writeQuestion;
-  document.getElementById('main').innerHTML = `
-    <div class="max-w-xl mx-auto">
+  document.getElementById('main').innerHTML = `<div class="max-w-xl mx-auto">
       <div class="flex items-center justify-between mb-6">
         <button onclick="endStudy()" class="text-sm text-slate-500">← Выйти</button>
         <span class="text-sm font-semibold text-slate-500">Письмо</span>
@@ -1098,6 +1134,8 @@ function ensureReviewData(word) {
   if (!Number.isFinite(word.mistakeCount)) word.mistakeCount = 0;
   if (!Number.isFinite(word.easeFactor)) word.easeFactor = 2.5;
   if (!Number.isFinite(word.dueAt)) word.dueAt = 0;
+  if (!Number.isFinite(word.lastMistakeAt)) word.lastMistakeAt = (word.mistakeCount > 0 || word.lapses > 0) ? 1 : 0;
+  if (!Number.isFinite(word.lastCorrectAt)) word.lastCorrectAt = 0;
   return word;
 }
 function reviewWord(word, quality) {
@@ -1106,11 +1144,13 @@ function reviewWord(word, quality) {
   if (quality <= 0) {
     word.lapses += 1;
     word.mistakeCount += 1;
+    word.lastMistakeAt = Math.max(now, (word.lastCorrectAt || 0) + 1);
     word.repetitions = 0;
     word.intervalDays = 0;
     word.dueAt = now + REVIEW_MINUTES_AGAIN * 60 * 1000;
     word.easeFactor = Math.max(1.3, word.easeFactor - 0.2);
   } else {
+    word.lastCorrectAt = Math.max(now, (word.lastMistakeAt || 0) + 1);
     if (quality === 1) {
       word.intervalDays = word.repetitions === 0 ? 1 : Math.max(1, Math.round(word.intervalDays * 1.2));
       word.easeFactor = Math.max(1.3, word.easeFactor - 0.05);
@@ -1140,7 +1180,9 @@ function dueWords(set) {
 function mistakeWords(set) {
   return set.words.filter(word => {
     ensureReviewData(word);
-    return word.mistakeCount > 0 || word.lapses > 0;
+    // Keep a word here only while its latest mistake has not been corrected.
+    return (word.mistakeCount > 0 || word.lapses > 0) &&
+      word.lastMistakeAt > word.lastCorrectAt;
   }).sort((a,b) => (b.mistakeCount + b.lapses) - (a.mistakeCount + a.lapses));
 }
 function startStudy(mode) {
@@ -1156,6 +1198,7 @@ function startStudy(mode) {
   }
   currentIndex = 0; isFlipped = false;
   testScore = 0; testTotal = 0; writeScore = 0; writeTotal = 0;
+  pushAppView('study');
   if (mode === 'cards' || mode === 'review' || mode === 'mistakes') renderCards();
   if (mode === 'test') nextTestQuestion();
   if (mode === 'write') nextWriteQuestion();
@@ -1353,6 +1396,16 @@ async function copySupportAddress() {
   const button = document.getElementById('copySupportBtn');
   if (button) button.textContent = copied ? 'Скопировано ✓' : 'Не удалось скопировать';
 }
+
+if (!history.state?.linguaApp) {
+  history.replaceState({
+    linguaApp: true,
+    linguaView: 'home',
+    setId: null,
+    mode: 'cards'
+  }, '');
+}
+window.addEventListener('popstate', event => restoreAppView(event.state));
 
 initializeTheme();
 renderHome();

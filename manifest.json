@@ -1,14 +1,13 @@
-
 {
   "name": "Lingua — изучение английского",
   "short_name": "Lingua",
   "description": "Карточки, примеры и интервальное повторение английских слов.",
   "start_url": "./index.html",
   "scope": "./",
-  "orientation": "portrait",
-  "theme_color": "#121212",
-  "background_color": "#121212",
   "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f8fafc",
+  "theme_color": "#f8fafc",
   "icons": [
     {
       "src": "./icon-192.png",
