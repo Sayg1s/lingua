@@ -330,6 +330,13 @@ html.dark #themeBtn::before {
 
 const STORAGE_KEY = 'lingua_app_data_v1';
 const THEME_KEY = 'lingua_theme_v1';
+const REVIEW_ORDER_KEY = 'lingua_review_order_v1';
+
+let reviewOrder = 'random';
+try {
+  const savedReviewOrder = localStorage.getItem(REVIEW_ORDER_KEY);
+  if (savedReviewOrder === 'sequential' || savedReviewOrder === 'random') reviewOrder = savedReviewOrder;
+} catch (error) {}
 
 const makeId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
@@ -1340,6 +1347,20 @@ function dueWords(set) {
   const now = Date.now();
   return set.words.filter(word => !ensureReviewData(word).dueAt || word.dueAt <= now);
 }
+function shuffleWords(words) {
+  const shuffled = [...words];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+function setReviewOrder(order) {
+  if (order !== 'random' && order !== 'sequential') return;
+  reviewOrder = order;
+  try { localStorage.setItem(REVIEW_ORDER_KEY, order); } catch (error) {}
+  renderSet();
+}
 function mistakeWords(set) {
   return set.words.filter(word => {
     ensureReviewData(word);
@@ -1352,8 +1373,10 @@ function startStudy(mode) {
   const set = getSet();
   if (!set || !set.words.length) { alert('Сначала добавь слова в набор.'); return; }
   currentMode = mode;
-  if (mode === 'review') studyWords = dueWords(set);
-  else if (mode === 'mistakes') studyWords = mistakeWords(set);
+  if (mode === 'review') {
+    studyWords = dueWords(set);
+    if (reviewOrder === 'random') studyWords = shuffleWords(studyWords);
+  } else if (mode === 'mistakes') studyWords = mistakeWords(set);
   else studyWords = [...set.words].sort(() => Math.random() - 0.5);
   if (!studyWords.length) {
     alert(mode === 'review' ? 'На сегодня повторений нет. Отличная работа!' : 'Ошибок пока нет. Продолжай заниматься!');
@@ -1397,10 +1420,19 @@ function renderSet() {
     <section class="mb-8">
       <h2 class="text-lg font-bold mb-3">Учиться</h2>
       <div class="grid grid-cols-2 gap-3">
-        <button onclick="startStudy('review')" class="col-span-2 rounded-xl bg-blue-50 dark:bg-blue-600 border border-blue-200 dark:border-blue-500 text-slate-900 dark:text-white p-4 text-left transition-colors">
-          <div class="flex justify-between items-center"><span class="font-semibold">Повторить сегодня</span><span class="text-sm opacity-80">${due} слов →</span></div>
-          <p class="text-xs text-blue-700 dark:text-blue-100 mt-1">Интервальное повторение</p>
-        </button>
+        <div class="col-span-2">
+          <button onclick="startStudy('review')" class="w-full rounded-xl bg-blue-50 dark:bg-blue-600 border border-blue-200 dark:border-blue-500 text-slate-900 dark:text-white p-4 text-left transition-colors">
+            <div class="flex justify-between items-center"><span class="font-semibold">Повторить сегодня</span><span class="text-sm opacity-80">${due} слов →</span></div>
+            <p class="text-xs text-blue-700 dark:text-blue-100 mt-1">Интервальное повторение</p>
+          </button>
+          <div class="flex items-center justify-between gap-3 mt-2 px-1">
+            <span class="text-xs text-slate-500">Порядок карточек</span>
+            <div class="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 p-1 bg-white dark:bg-slate-900" role="group" aria-label="Порядок карточек для повторения">
+              <button type="button" onclick="setReviewOrder('random')" aria-pressed="${reviewOrder === 'random'}" class="rounded-md px-3 py-1.5 text-xs font-semibold ${reviewOrder === 'random' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}">Случайно</button>
+              <button type="button" onclick="setReviewOrder('sequential')" aria-pressed="${reviewOrder === 'sequential'}" class="rounded-md px-3 py-1.5 text-xs font-semibold ${reviewOrder === 'sequential' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}">По порядку</button>
+            </div>
+          </div>
+        </div>
         <button onclick="startStudy('cards')" class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 text-left"><div class="font-semibold">Карточки</div><div class="text-xs text-slate-500 mt-1">Все слова</div></button>
         <button onclick="startStudy('mistakes')" class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 text-left"><div class="font-semibold">Мои ошибки</div><div class="text-xs text-slate-500 mt-1">${mistakes} слов</div></button>
         <button onclick="startStudy('test')" class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 text-left"><div class="font-semibold">Тест</div><div class="text-xs text-slate-500 mt-1">Выбери перевод</div></button>
